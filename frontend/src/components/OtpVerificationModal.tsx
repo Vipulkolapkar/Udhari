@@ -37,6 +37,9 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
     setError(null);
 
     try {
+      // Clear any previous stale session before requesting fresh OTP
+      await supabase.auth.signOut().catch(() => {});
+
       if (isEmail) {
         const { error: authError } = await supabase.auth.signInWithOtp({
           email: target.trim().toLowerCase(),
@@ -69,22 +72,27 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
     sendOtp();
   }, [target]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Real-time listener: Auto-detect when the user clicks the verification link in their email!
+  // Real-time listener: ONLY trigger on new SIGNED_IN event (ignore INITIAL_SESSION)
   useEffect(() => {
+    if (!otpSent) return;
+
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session?.user || event === 'SIGNED_IN' || event === 'USER_UPDATED') {
-        setIsSuccess(true);
-        setTimeout(() => {
-          onVerified();
-          onClose();
-        }, 500);
+      // ONLY accept explicit SIGNED_IN or USER_UPDATED events, never INITIAL_SESSION
+      if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+        if (session?.user?.email?.toLowerCase() === target.trim().toLowerCase() || !session?.user?.email) {
+          setIsSuccess(true);
+          setTimeout(() => {
+            onVerified();
+            onClose();
+          }, 600);
+        }
       }
     });
 
     return () => {
       authListener.subscription.unsubscribe();
     };
-  }, [onVerified, onClose]);
+  }, [otpSent, target, onVerified, onClose]);
 
   // Countdown timer
   useEffect(() => {
