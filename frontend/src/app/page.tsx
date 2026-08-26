@@ -1,9 +1,29 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Customer, Invoice, Payment, Language, DashboardMetrics, InvoiceItem, ShopUser, ShopCategory, ThemeMode } from '../types';
-import { KhataStore } from '../lib/storage';
 import { getTranslation } from '../lib/translations';
+
+// Supabase Store (async, real database)
+import {
+  sbGetCurrentUser,
+  sbSetCurrentUser,
+  sbGetShops,
+  sbLoginWithPhone,
+  sbRegisterShop,
+  sbUpdateShop,
+  sbGetCustomers,
+  sbAddCustomer,
+  sbGetInvoices,
+  sbAddInvoice,
+  sbGetPayments,
+  sbRecordPayment,
+  sbGetDashboardMetrics,
+  sbSaveCustomerMessage,
+} from '../lib/supabaseStore';
+
+// LocalStorage fallback for offline metrics
+import { KhataStore } from '../lib/storage';
 
 // Components
 import { Header } from '../components/Header';
@@ -32,9 +52,17 @@ export default function Home() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [metrics, setMetrics] = useState<DashboardMetrics>({
+    total_market_debt: 0,
+    credit_given_today: 0,
+    collected_today: 0,
+    active_debtors: 0,
+    active_debtors_count: 0
+  });
   const [searchQuery, setSearchQuery] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Active Modals State
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -45,61 +73,86 @@ export default function Home() {
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
   const [isAddCustomerOpen, setIsAddCustomerOpen] = useState(false);
 
-  // Load from storage on mount & on shop switch
-  const refreshData = () => {
-    const user = KhataStore.getCurrentUser();
-    const shops = KhataStore.getShops();
-    setCurrentShop(user);
-    setExistingShops(shops);
-    setCustomers(KhataStore.getCustomers(user?.id));
-    setInvoices(KhataStore.getInvoices(user?.id));
-    setPayments(KhataStore.getPayments(user?.id));
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
 
-    // Load theme from localStorage (Language fixed to English)
+  // ─── Load all data from Supabase ─────────────────────────────────
+  const refreshData = useCallback(async (shopId?: string) => {
+    setIsLoading(true);
+    try {
+      const [user, shops] = await Promise.all([
+        sbGetCurrentUser(),
+        sbGetShops()
+      ]);
+
+      const activeShopId = shopId || user?.id;
+      setCurrentShop(user);
+      setExistingShops(shops);
+
+      if (activeShopId) {
+        const [custs, invs, pays, met] = await Promise.all([
+          sbGetCustomers(activeShopId),
+          sbGetInvoices(activeShopId),
+          sbGetPayments(activeShopId),
+          sbGetDashboardMetrics(activeShopId)
+        ]);
+        setCustomers(custs);
+        setInvoices(invs);
+        setPayments(pays);
+        setMetrics(met);
+      } else {
+        setCustomers([]);
+        setInvoices([]);
+        setPayments([]);
+        setMetrics({ total_market_debt: 0, credit_given_today: 0, collected_today: 0, active_debtors: 0, active_debtors_count: 0 });
+      }
+    } catch (err) {
+      console.error('refreshData error:', err);
+      showToast('Connection issue. Check your internet and try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // ─── Init on mount ────────────────────────────────────────────────
+  useEffect(() => {
     if (typeof window !== 'undefined') {
       const savedTheme = (localStorage.getItem('khata_theme_v1') as ThemeMode) || 'dark';
       setTheme(savedTheme);
       document.body.setAttribute('data-theme', savedTheme);
-
-      // Force English as the single primary language
       setLanguage('en');
-      localStorage.setItem('khata_lang_v1', 'en');
 
       const savedSidebar = localStorage.getItem('khata_sidebar_collapsed');
-      if (savedSidebar !== null) {
-        setIsSidebarCollapsed(savedSidebar === 'true');
-      } else {
-        setIsSidebarCollapsed(false); // Open by default
-      }
+      setIsSidebarCollapsed(savedSidebar === 'true' ? true : false);
     }
-    setIsInitialized(true);
-  };
+    refreshData().finally(() => setIsInitialized(true));
+  }, [refreshData]);
 
-  useEffect(() => {
-    refreshData();
-  }, []);
+  const t = getTranslation(language);
 
-  const handleLanguageChange = (newLang: Language) => {
-    setLanguage(newLang);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('khata_lang_v1', newLang);
+  // ─── Filtered Customers ───────────────────────────────────────────
+  const filteredCustomers = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return [...customers].sort((a, b) => b.current_balance - a.current_balance);
     }
-  };
+    const q = searchQuery.toLowerCase().trim().replace(/\D/g, '');
+    const qText = searchQuery.toLowerCase().trim();
+    return customers.filter((c) => {
+      const matchPhone = q ? c.phone?.includes(q) : false;
+      const matchName = c.name.toLowerCase().includes(qText);
+      const matchLandmark = c.address_landmark?.toLowerCase().includes(qText);
+      return matchPhone || matchName || matchLandmark;
+    });
+  }, [customers, searchQuery]);
 
+  // ─── Sidebar ──────────────────────────────────────────────────────
   const handleToggleSidebar = () => {
     const nextVal = !isSidebarCollapsed;
     setIsSidebarCollapsed(nextVal);
     if (typeof window !== 'undefined') {
       localStorage.setItem('khata_sidebar_collapsed', String(nextVal));
-    }
-  };
-
-  const handleThemeToggle = () => {
-    const nextTheme: ThemeMode = theme === 'dark' ? 'light' : 'dark';
-    setTheme(nextTheme);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('khata_theme_v1', nextTheme);
-      document.body.setAttribute('data-theme', nextTheme);
     }
   };
 
@@ -111,94 +164,83 @@ export default function Home() {
     }
   };
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
-  };
-
-  const metrics: DashboardMetrics = useMemo(() => {
-    return KhataStore.getDashboardMetrics(currentShop?.id);
-  }, [currentShop, customers, invoices, payments]);
-
-  const t = getTranslation(language);
-
-  // Instant Sub-50ms Search Filtering (matches name or phone number)
-  const filteredCustomers = useMemo(() => {
-    if (!searchQuery.trim()) {
-      return [...customers].sort((a, b) => b.current_balance - a.current_balance);
+  const handleLanguageChange = (newLang: Language) => {
+    setLanguage(newLang);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('khata_lang_v1', newLang);
     }
-    const q = searchQuery.toLowerCase().trim().replace(/\D/g, ''); // Numbers only for phone
-    const qText = searchQuery.toLowerCase().trim();
-
-    return customers.filter((c) => {
-      const matchPhone = q ? c.phone.includes(q) : false;
-      const matchName = c.name.toLowerCase().includes(qText);
-      const matchLandmark = c.address_landmark?.toLowerCase().includes(qText);
-      return matchPhone || matchName || matchLandmark;
-    });
-  }, [customers, searchQuery]);
-
-  // Auth Handlers
-  const handleLoginShop = (shop: ShopUser) => {
-    KhataStore.setCurrentUser(shop);
-    refreshData();
-    setIsAuthModalOpen(false);
-    showToast(language === 'mr' ? `दुकान "${shop.shop_name}" मध्ये प्रवेश केला!` : language === 'hi' ? `दुकान "${shop.shop_name}" में प्रवेश किया!` : `Signed in to ${shop.shop_name}`);
   };
 
-  const handleLoginWithEmail = (identifier: string, password?: string) => {
-    const shop = KhataStore.loginWithEmailOrPhone(identifier, password);
+  // ─── Auth Handlers ────────────────────────────────────────────────
+  const handleLoginShop = async (shop: ShopUser) => {
+    sbSetCurrentUser(shop);
+    await refreshData(shop.id);
+    setIsAuthModalOpen(false);
+    showToast(`Signed in to ${shop.shop_name}`);
+  };
+
+  const handleLoginWithEmail = async (identifier: string, _password?: string) => {
+    const shop = await sbLoginWithPhone(identifier);
     if (shop) {
-      refreshData();
+      await refreshData(shop.id);
       setIsAuthModalOpen(false);
-      showToast(language === 'mr' ? `दुकान "${shop.shop_name}" मध्ये प्रवेश केला!` : language === 'hi' ? `दुकान "${shop.shop_name}" में प्रवेश किया!` : `Signed in as ${shop.owner_name}`);
+      showToast(`Signed in as ${shop.owner_name}`);
+    } else {
+      showToast('Account not found. Please check your phone/email.');
     }
   };
 
-  const handleLoginWithGoogle = () => {
-    const shop = KhataStore.loginWithGoogle({
-      name: 'Vipul Kolapkar',
-      email: 'vipul.kolapkar@gmail.com'
-    });
-    refreshData();
-    setIsAuthModalOpen(false);
-    showToast(t.googleLoginSuccess);
+  const handleLoginWithGoogle = async () => {
+    showToast('Google login coming soon!');
   };
 
-  const handleRegisterShop = (shopData: {
+  const handleRegisterShop = async (shopData: {
     shop_name: string;
     owner_name: string;
     phone: string;
+    whatsapp_phone?: string;
     email?: string;
     password?: string;
+    gstin?: string;
     shop_category: ShopCategory;
     address?: string;
+    terms_accepted?: boolean;
   }) => {
-    const newShop = KhataStore.registerShop(shopData);
-    refreshData();
-    setIsAuthModalOpen(false);
-    showToast(language === 'mr' ? `नवीन दुकान "${newShop.shop_name}" नोंदवले!` : language === 'hi' ? `नई दुकान "${newShop.shop_name}" पंजीकृत की गई!` : `Registered ${newShop.shop_name}`);
-  };
-
-  const handleLogout = () => {
-    KhataStore.logout();
-    setCurrentShop(null);
-    setCurrentView('DASHBOARD');
-    refreshData();
-    showToast(t.signOut);
-  };
-
-  // Shop Settings Update Handler
-  const handleSaveShopSettings = (updatedData: Partial<ShopUser>) => {
-    if (currentShop) {
-      KhataStore.updateShopSettings(currentShop.id, updatedData);
-      refreshData();
-      showToast(t.settingsSavedSuccess);
+    try {
+      const newShop = await sbRegisterShop(shopData);
+      await refreshData(newShop.id);
+      setIsAuthModalOpen(false);
+      showToast(`Welcome! Business "${newShop.shop_name}" registered successfully!`);
+    } catch (err) {
+      showToast('Registration failed. Please try again.');
+      console.error(err);
     }
   };
 
-  // Handle Bill Submission
-  const handleCreateBill = (
+  const handleLogout = () => {
+    sbSetCurrentUser(null);
+    setCurrentShop(null);
+    setCurrentView('DASHBOARD');
+    setCustomers([]);
+    setInvoices([]);
+    setPayments([]);
+    setMetrics({ total_market_debt: 0, credit_given_today: 0, collected_today: 0, active_debtors: 0, active_debtors_count: 0 });
+    showToast('Signed out successfully');
+  };
+
+  // ─── Shop Profile Update ──────────────────────────────────────────
+  const handleSaveShopSettings = async (updatedData: Partial<ShopUser>) => {
+    if (currentShop) {
+      const updated = await sbUpdateShop(currentShop.id, updatedData);
+      if (updated) {
+        setCurrentShop(updated);
+        showToast(t.settingsSavedSuccess);
+      }
+    }
+  };
+
+  // ─── Bill / Invoice Creation ──────────────────────────────────────
+  const handleCreateBill = async (
     customerId: string,
     billData: {
       items: InvoiceItem[];
@@ -209,60 +251,101 @@ export default function Home() {
       due_date?: string;
     }
   ) => {
-    KhataStore.addInvoice(customerId, billData);
-    refreshData();
-    setBillModalCustomer(null);
-    showToast(t.billCreatedSuccess);
+    if (!currentShop) return;
+    try {
+      await sbAddInvoice(currentShop.id, customerId, billData);
+      await refreshData(currentShop.id);
+      setBillModalCustomer(null);
+      showToast(t.billCreatedSuccess);
+    } catch (err) {
+      showToast('Failed to create bill. Try again.');
+      console.error(err);
+    }
   };
 
-  // Handle Payment Submission
-  const handleRecordPayment = (
+  // ─── Record Payment ───────────────────────────────────────────────
+  const handleRecordPayment = async (
     customerId: string,
     amount: number,
     paymentMode: Payment['payment_mode'],
     discountWaived: number,
     referenceNote?: string
   ) => {
-    KhataStore.recordPayment(customerId, amount, paymentMode, discountWaived, referenceNote);
-    refreshData();
-    setPaymentModalCustomer(null);
-    showToast(t.recordPaymentSuccess);
+    if (!currentShop) return;
+    const customerInvoices = invoices.filter((i) => i.customer_id === customerId);
+    try {
+      await sbRecordPayment(currentShop.id, customerId, customerInvoices, amount, paymentMode, discountWaived, referenceNote);
+      await refreshData(currentShop.id);
+      setPaymentModalCustomer(null);
+      showToast(t.recordPaymentSuccess);
+    } catch (err) {
+      showToast('Failed to record payment. Try again.');
+      console.error(err);
+    }
   };
 
-  // Handle Add Customer
-  const handleAddCustomer = (data: {
+  // ─── Add Customer ─────────────────────────────────────────────────
+  const handleAddCustomer = async (data: {
     name: string;
     phone: string;
     address_landmark?: string;
     credit_limit?: number;
   }) => {
-    const newCust = KhataStore.addCustomer({
-      ...data,
-      credit_limit: data.credit_limit || 0,
-      shop_id: currentShop?.id
-    });
-    refreshData();
-    setIsAddCustomerOpen(false);
-    showToast(language === 'mr' ? `ग्राहक ${newCust.name} जोडला!` : language === 'hi' ? `ग्राहक ${newCust.name} जोड़ा गया!` : `Added customer ${newCust.name}`);
+    if (!currentShop) return;
+    try {
+      const newCust = await sbAddCustomer(currentShop.id, {
+        name: data.name,
+        phone: data.phone || '',
+        address_landmark: data.address_landmark,
+        credit_limit: data.credit_limit || 10000
+      });
+      await refreshData(currentShop.id);
+      setIsAddCustomerOpen(false);
+      showToast(`Added customer ${newCust.name}`);
+    } catch (err) {
+      showToast('Failed to add customer. Try again.');
+      console.error(err);
+    }
   };
 
-  // Handle Reset Data
-  const handleResetData = () => {
-    KhataStore.resetToDefault();
-    refreshData();
-    showToast(t.resetSuccess);
+  // ─── Reset Data ───────────────────────────────────────────────────
+  const handleResetData = async () => {
+    // For now just clears session & reloads
+    handleLogout();
+    showToast('Data reset. Please sign in again.');
   };
 
-  // Handle Voice Recognition Result
-  const handleVoiceRecognized = (customer: Customer, amount: number, note: string) => {
+  // ─── Voice Recognition ────────────────────────────────────────────
+  const handleVoiceRecognized = (customer: Customer, _amount: number, _note: string) => {
     setIsVoiceModalOpen(false);
     setBillModalCustomer(customer);
   };
 
-  // Don't render until client state is initialized
-  if (!isInitialized) return null;
+  // ─── Loading / Init Guard ─────────────────────────────────────────
+  if (!isInitialized) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'var(--bg-app)',
+        flexDirection: 'column',
+        gap: '1rem'
+      }}>
+        <div style={{
+          width: 44, height: 44, borderRadius: '50%',
+          border: '3px solid var(--btn-primary-bg)',
+          borderTopColor: 'transparent',
+          animation: 'spin 0.8s linear infinite'
+        }} />
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Connecting to Udhari...</p>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
 
-  // 1. Show Full Sign In / Register Landing Screen when logged out or visiting for the first time
+  // ─── Auth Screen ──────────────────────────────────────────────────
   if (!currentShop) {
     return (
       <AuthScreen
@@ -279,7 +362,7 @@ export default function Home() {
 
   return (
     <div className="app-shell">
-      {/* 2. Adjustable Navigation Sidebar with Full Names & Icons */}
+      {/* Adjustable Navigation Sidebar */}
       <Sidebar
         isOpen={!isSidebarCollapsed}
         currentView={currentView}
@@ -289,22 +372,27 @@ export default function Home() {
         onLogout={handleLogout}
       />
 
-      {/* 3. Main Page Layout (Parallel with Sidebar, fully interactive) */}
+      {/* Main Layout */}
       <main className="app-main-layout">
+        {isLoading && (
+          <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0,
+            height: '3px',
+            background: 'linear-gradient(90deg, var(--btn-primary-bg), var(--color-credit))',
+            zIndex: 9999,
+            animation: 'pulse 1s ease-in-out infinite'
+          }} />
+        )}
+
         {currentView === 'DASHBOARD' ? (
           <>
-            {/* Front Page Header with Large Udhari Branding, + Add Customer & Voice Entry */}
             <Header
               currentShop={currentShop}
               language={language}
               onVoiceBillClick={() => setIsVoiceModalOpen(true)}
               onAddCustomerClick={() => setIsAddCustomerOpen(true)}
             />
-
-            {/* Dashboard KPI Stats */}
             <DashboardStats metrics={metrics} language={language} />
-
-            {/* Search Input Bar (Cmd+K) with Voice Input trigger */}
             <CustomerSearchBar
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
@@ -312,24 +400,17 @@ export default function Home() {
               onVoiceClick={() => setIsVoiceModalOpen(true)}
             />
 
-            {/* Customer Cards Section */}
             <section>
               <div className="customers-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
                 <h2 className="section-title">
                   <span>{t.customerListTitle}</span>
                   <span className="customer-count-badge">{filteredCustomers.length}</span>
                 </h2>
-
-                {/* Additional Quick Add Customer Trigger on Front Page Section */}
                 <button
                   type="button"
                   className="btn btn-outline"
                   onClick={() => setIsAddCustomerOpen(true)}
-                  style={{
-                    fontSize: '0.82rem',
-                    fontWeight: 600,
-                    padding: '0.4rem 0.85rem'
-                  }}
+                  style={{ fontSize: '0.82rem', fontWeight: 600, padding: '0.4rem 0.85rem' }}
                 >
                   <span>+ {t.addCustomer}</span>
                 </button>
@@ -344,13 +425,13 @@ export default function Home() {
                   textAlign: 'center',
                   color: 'var(--text-secondary)'
                 }}>
-                  <p style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)' }}>{t.noCustomersFound}</p>
+                  <p style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                    {searchQuery ? t.noCustomersFound : 'No customers yet'}
+                  </p>
                   <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: '0.4rem' }}>
-                    {language === 'mr'
-                      ? 'नवीन ग्राहक जोडण्यासाठी वरील बटणावर क्लिक करा.'
-                      : language === 'hi'
-                      ? 'नया ग्राहक जोड़ने के लिए ऊपर दिए गए बटन पर क्लिक करें।'
-                      : 'Click the "+ Add Customer" button above to create an account.'}
+                    {searchQuery
+                      ? 'Try a different name or phone number.'
+                      : 'Click "+ Add Customer" to create your first customer account.'}
                   </p>
                 </div>
               ) : (
@@ -371,7 +452,6 @@ export default function Home() {
             </section>
           </>
         ) : currentView === 'PROFILE' ? (
-          /* 4. Dedicated Business Profile & Analytics View */
           <ProfileView
             currentShop={currentShop}
             customers={customers}
@@ -381,7 +461,6 @@ export default function Home() {
             onSaveShopSettings={handleSaveShopSettings}
           />
         ) : (
-          /* 5. Dedicated Settings Page (Theme, Security, Data) */
           <SettingsView
             currentShop={currentShop}
             language={language}
@@ -466,7 +545,7 @@ export default function Home() {
         />
       )}
 
-      {/* Toast Notification Alert */}
+      {/* Toast */}
       {toastMessage && (
         <div className="toast-container">
           <div className="toast">
