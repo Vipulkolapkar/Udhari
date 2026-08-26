@@ -129,7 +129,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
     // Save pending registration details so clicking email link completes setup automatically
     if (typeof window !== 'undefined') {
-      sessionStorage.setItem('udhari_pending_registration', JSON.stringify({
+      localStorage.setItem('udhari_pending_registration', JSON.stringify({
         shop_name: shopName.trim(),
         owner_name: ownerName.trim(),
         phone: phone.trim(),

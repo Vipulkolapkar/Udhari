@@ -130,26 +130,55 @@ export default function Home() {
     }
     refreshData().finally(() => setIsInitialized(true));
 
-    // ─── Listen for Email Verification / Link Click Redirects ───
-    const { data: authSub } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user && (event === 'SIGNED_IN' || event === 'USER_UPDATED')) {
-        // Check if there is a pending registration
-        if (typeof window !== 'undefined') {
-          const pending = sessionStorage.getItem('udhari_pending_registration');
-          if (pending) {
-            try {
-              const shopData = JSON.parse(pending);
-              sessionStorage.removeItem('udhari_pending_registration');
-              const newShop = await sbRegisterShop(shopData);
-              await refreshData(newShop.id);
-              showToast(`Welcome! Business "${newShop.shop_name}" registered successfully!`);
-              return;
-            } catch (e) {
-              console.error('Pending registration error:', e);
-            }
+    // ─── Listen for Email Verification / Link Click Redirects Across Tabs ───
+    const handleAuthEvent = async (session: any) => {
+      if (!session?.user) return;
+
+      if (typeof window !== 'undefined') {
+        const pending = localStorage.getItem('udhari_pending_registration');
+        if (pending) {
+          try {
+            const shopData = JSON.parse(pending);
+            localStorage.removeItem('udhari_pending_registration');
+            const newShop = await sbRegisterShop(shopData);
+            sbSetCurrentUser(newShop);
+            await refreshData(newShop.id);
+            showToast(`Welcome! Business "${newShop.shop_name}" registered successfully!`);
+            return;
+          } catch (e) {
+            console.error('Pending registration error:', e);
           }
         }
-        await refreshData();
+
+        // If no pending registration, check if user matches an existing shop
+        try {
+          const allShops = await sbGetShops();
+          const userEmail = session.user.email?.toLowerCase();
+          const matchedShop = allShops.find((s) => s.email?.toLowerCase() === userEmail);
+          if (matchedShop) {
+            sbSetCurrentUser(matchedShop);
+            await refreshData(matchedShop.id);
+            showToast(`Signed in to ${matchedShop.shop_name}`);
+            return;
+          }
+        } catch (e) {
+          console.error('Shop match error:', e);
+        }
+      }
+
+      await refreshData();
+    };
+
+    // Check on mount if landed via email link hash / query
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        handleAuthEvent(session);
+      }
+    });
+
+    const { data: authSub } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user && (event === 'SIGNED_IN' || event === 'USER_UPDATED')) {
+        await handleAuthEvent(session);
       }
     });
 
