@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { X, ShieldCheck, RefreshCw, CheckCircle, Mail, Smartphone } from 'lucide-react';
+import { X, ShieldCheck, RefreshCw, CheckCircle, Mail, Smartphone, ExternalLink } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface OtpVerificationModalProps {
@@ -26,37 +26,30 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
   const [otpSent, setOtpSent] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  const isEmail = type === 'EMAIL' || !target.startsWith('+') && target.includes('@');
+  const isEmail = type === 'EMAIL' || (!target.startsWith('+') && target.includes('@'));
   const displayTarget = target.length > 4
     ? target.slice(0, 3) + '****' + target.slice(-3)
     : target;
 
-  // Send OTP via Supabase
+  // Send OTP or Magic Link via Supabase
   const sendOtp = async () => {
     setIsSending(true);
     setError(null);
 
     try {
       if (isEmail) {
-        // Send email OTP via Supabase Auth
         const { error: authError } = await supabase.auth.signInWithOtp({
-          email: target,
+          email: target.trim().toLowerCase(),
           options: {
-            shouldCreateUser: false, // just verify, don't sign in
+            emailRedirectTo: typeof window !== 'undefined' ? window.location.origin : undefined,
           }
         });
-        if (authError) {
-          // Supabase may require user to exist; try with create
-          const { error: createError } = await supabase.auth.signInWithOtp({ email: target });
-          if (createError) throw createError;
-        }
+        if (authError) throw authError;
       } else {
-        // Phone OTP — requires Twilio setup in Supabase
         const phone = target.startsWith('+') ? target : `+91${target.replace(/\D/g, '')}`;
         const { error: phoneError } = await supabase.auth.signInWithOtp({ phone });
         if (phoneError) {
-          // Fallback: send to email if phone fails
-          setError('Phone OTP requires SMS setup. Please verify using your email address instead.');
+          setError('Phone OTP requires SMS gateway. Please verify using your email address instead.');
           setIsSending(false);
           return;
         }
@@ -64,9 +57,8 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
 
       setOtpSent(true);
       setTimer(60);
-      setTimeout(() => inputRefs.current[0]?.focus(), 100);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to send OTP.';
+      const msg = err instanceof Error ? err.message : 'Failed to send verification email.';
       setError(msg);
     } finally {
       setIsSending(false);
@@ -77,6 +69,23 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
     sendOtp();
   }, [target]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Real-time listener: Auto-detect when the user clicks the verification link in their email!
+  useEffect(() => {
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session?.user || event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+        setIsSuccess(true);
+        setTimeout(() => {
+          onVerified();
+          onClose();
+        }, 500);
+      }
+    });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, [onVerified, onClose]);
+
   // Countdown timer
   useEffect(() => {
     if (timer <= 0 || !otpSent) return;
@@ -84,7 +93,7 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
     return () => clearInterval(interval);
   }, [timer, otpSent]);
 
-  // Verify OTP via Supabase
+  // Verify OTP via code if entered
   const verifyOtp = async (code: string) => {
     setIsVerifying(true);
     setError(null);
@@ -92,7 +101,7 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
       let verifyError;
       if (isEmail) {
         const { error } = await supabase.auth.verifyOtp({
-          email: target,
+          email: target.trim().toLowerCase(),
           token: code,
           type: 'email'
         });
@@ -108,7 +117,7 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
       }
 
       if (verifyError) {
-        setError('Invalid or expired OTP. Please try again.');
+        setError('Invalid code. You can also simply click the link sent to your email.');
         setOtpValues(['', '', '', '', '', '']);
         inputRefs.current[0]?.focus();
       } else {
@@ -116,10 +125,10 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
         setTimeout(() => {
           onVerified();
           onClose();
-        }, 800);
+        }, 500);
       }
     } catch {
-      setError('Verification failed. Please try again.');
+      setError('Verification failed. Please click the link in your email.');
     } finally {
       setIsVerifying(false);
     }
@@ -153,35 +162,25 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
     }
   };
 
-  const handlePaste = (e: React.ClipboardEvent) => {
-    e.preventDefault();
-    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
-    if (pasted.length === 6) {
-      const newValues = pasted.split('');
-      setOtpValues(newValues);
-      verifyOtp(pasted);
-    }
-  };
-
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div
         className="modal-content"
         onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: '420px', textAlign: 'center' }}
+        style={{ maxWidth: '440px', textAlign: 'center' }}
       >
         {/* Header */}
         <div className="modal-header">
           <div className="modal-title">
             <ShieldCheck size={18} color="var(--btn-primary-bg)" />
-            <span>Verify {isEmail ? 'Email' : 'Phone Number'}</span>
+            <span>Verify {isEmail ? 'Email' : 'Phone'}</span>
           </div>
           <button type="button" className="icon-btn" onClick={onClose}>
             <X size={16} />
           </button>
         </div>
 
-        <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.25rem' }}>
+        <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.15rem' }}>
           {/* Icon */}
           <div style={{
             width: 56, height: 56,
@@ -199,68 +198,43 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
           {/* Info */}
           {isSending ? (
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-              Sending verification code...
+              Sending verification email...
             </p>
           ) : (
             <div style={{ textAlign: 'center' }}>
               <p style={{ color: 'var(--text-primary)', fontWeight: 600, fontSize: '0.95rem' }}>
-                OTP sent to
+                Verification sent to
               </p>
-              <p style={{ color: 'var(--btn-primary-bg)', fontWeight: 700, fontSize: '1rem', marginTop: '0.25rem' }}>
+              <p style={{ color: 'var(--btn-primary-bg)', fontWeight: 700, fontSize: '1rem', marginTop: '0.2rem' }}>
                 {displayTarget}
               </p>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.78rem', marginTop: '0.5rem' }}>
-                {isEmail
-                  ? 'Check your inbox (and spam folder) for the 6-digit code.'
-                  : 'A 6-digit SMS code has been sent to your mobile number.'}
-              </p>
+              
+              {/* Highlight box for Link click */}
+              <div style={{
+                background: 'rgba(37, 99, 235, 0.08)',
+                border: '1px solid rgba(37, 99, 235, 0.25)',
+                borderRadius: 'var(--radius-sm)',
+                padding: '0.75rem 1rem',
+                marginTop: '0.75rem',
+                fontSize: '0.82rem',
+                color: 'var(--text-primary)',
+                lineHeight: 1.45,
+                textAlign: 'left'
+              }}>
+                <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem', color: 'var(--btn-primary-bg)', marginBottom: '0.25rem' }}>
+                  <ExternalLink size={14} />
+                  <span>Option 1: Instant Email Verification</span>
+                </div>
+                <span>Click the <strong>"Confirm email address"</strong> button inside the email you just received. This window will <strong>auto-confirm</strong> immediately!</span>
+              </div>
             </div>
-          )}
-
-          {/* OTP Inputs */}
-          {!isSending && (
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              {otpValues.map((val, i) => (
-                <input
-                  key={i}
-                  ref={(el) => { inputRefs.current[i] = el; }}
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={1}
-                  value={val}
-                  onChange={(e) => handleChange(i, e.target.value)}
-                  onKeyDown={(e) => handleKeyDown(i, e)}
-                  onPaste={i === 0 ? handlePaste : undefined}
-                  disabled={isSuccess || isVerifying}
-                  style={{
-                    width: 44, height: 52,
-                    textAlign: 'center',
-                    fontSize: '1.4rem',
-                    fontWeight: 700,
-                    border: `2px solid ${error ? 'var(--color-debit)' : val ? 'var(--btn-primary-bg)' : 'var(--border-medium)'}`,
-                    borderRadius: 'var(--radius-sm)',
-                    background: 'var(--bg-surface-elevated)',
-                    color: 'var(--text-primary)',
-                    outline: 'none',
-                    transition: 'border-color 0.15s'
-                  }}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Verifying indicator */}
-          {isVerifying && (
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-              Verifying...
-            </p>
           )}
 
           {/* Success */}
           {isSuccess && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--color-credit)', fontWeight: 600 }}>
-              <CheckCircle size={18} />
-              <span>Verified successfully!</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--color-credit)', fontWeight: 600, fontSize: '0.95rem' }}>
+              <CheckCircle size={20} />
+              <span>Email verified successfully! Setting up your business...</span>
             </div>
           )}
 
@@ -269,7 +243,7 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
             <p style={{
               color: 'var(--color-debit)',
               fontSize: '0.82rem',
-              background: 'rgba(var(--color-debit-rgb, 239,68,68), 0.08)',
+              background: 'rgba(239, 68, 68, 0.08)',
               padding: '0.5rem 0.75rem',
               borderRadius: 'var(--radius-sm)',
               width: '100%',
@@ -283,7 +257,7 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
           {!isSending && !isSuccess && (
             <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
               {timer > 0 ? (
-                <span>Resend code in <strong style={{ color: 'var(--text-primary)' }}>{timer}s</strong></span>
+                <span>Resend email in <strong style={{ color: 'var(--text-primary)' }}>{timer}s</strong></span>
               ) : (
                 <button
                   type="button"
@@ -295,7 +269,7 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
                   }}
                 >
                   <RefreshCw size={13} />
-                  Resend OTP
+                  Resend Verification Email
                 </button>
               )}
             </div>

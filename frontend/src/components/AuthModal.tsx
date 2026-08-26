@@ -123,6 +123,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       return;
     }
 
+    // Save pending registration details so clicking email link completes setup automatically
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('udhari_pending_registration', JSON.stringify({
+        shop_name: shopName.trim(),
+        owner_name: ownerName.trim(),
+        phone: phone.trim(),
+        whatsapp_phone: (sameAsPhone ? phone.trim() : whatsappPhone.trim()) || phone.trim(),
+        email: email.trim() || undefined,
+        password: registerPassword || undefined,
+        gstin: gstin.trim() || undefined,
+        shop_category: category,
+        address: address.trim() || undefined,
+        terms_accepted: termsAccepted
+      }));
+    }
+    
     // Require Email for real Supabase OTP verification
     if (email.trim() && !isEmailVerified) {
       setOtpModal({ type: 'EMAIL', target: email.trim() });

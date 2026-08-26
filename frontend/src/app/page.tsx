@@ -1,4 +1,5 @@
 'use client';
+import { supabase } from '../lib/supabase';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Customer, Invoice, Payment, Language, DashboardMetrics, InvoiceItem, ShopUser, ShopCategory, ThemeMode } from '../types';
@@ -128,6 +129,31 @@ export default function Home() {
       setIsSidebarCollapsed(savedSidebar === 'true' ? true : false);
     }
     refreshData().finally(() => setIsInitialized(true));
+
+    // ─── Listen for Email Verification / Link Click Redirects ───
+    const { data: authSub } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user && (event === 'SIGNED_IN' || event === 'USER_UPDATED')) {
+        // Check if there is a pending registration
+        if (typeof window !== 'undefined') {
+          const pending = sessionStorage.getItem('udhari_pending_registration');
+          if (pending) {
+            try {
+              const shopData = JSON.parse(pending);
+              sessionStorage.removeItem('udhari_pending_registration');
+              const newShop = await sbRegisterShop(shopData);
+              await refreshData(newShop.id);
+              showToast(`Welcome! Business "${newShop.shop_name}" registered successfully!`);
+              return;
+            } catch (e) {
+              console.error('Pending registration error:', e);
+            }
+          }
+        }
+        await refreshData();
+      }
+    });
+
+    return () => { authSub.subscription.unsubscribe(); };
   }, [refreshData]);
 
   const t = getTranslation(language);
