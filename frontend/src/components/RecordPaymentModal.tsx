@@ -186,7 +186,7 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
               <input
                 type="text"
                 className="form-input"
-                placeholder={language === 'mr' ? 'उदा. रोख किंवा युपीआय संदर्भ' : language === 'hi' ? 'उदा. नकद या यूपीआई संदर्भ' : 'e.g. Cash or UPI ref number'}
+                placeholder={language === 'mr' ? '.    ' : false ? '.    ' : 'e.g. Cash or UPI ref number'}
                 value={referenceNote}
                 onChange={(e) => setReferenceNote(e.target.value)}
               />

@@ -205,7 +205,7 @@ export const CreateBillModal: React.FC<CreateBillModalProps> = ({
                 <input
                   type="text"
                   className="form-input"
-                  placeholder={language === 'mr' ? 'उदा. स्वतः / मुलगा' : language === 'hi' ? 'उदा. स्वयं / बेटा' : 'e.g. Self / Assistant'}
+                  placeholder={language === 'mr' ? '.  / ' : false ? '.  / ' : 'e.g. Self / Assistant'}
                   value={takenBy}
                   onChange={(e) => setTakenBy(e.target.value)}
                 />

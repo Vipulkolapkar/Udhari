@@ -67,13 +67,13 @@ export const CATEGORY_PRESET_ITEMS: Record<ShopCategory, PresetItem[]> = {
     { name: 'Spiral Binding with Hard Sheet', price: 60 }
   ],
   KIRANA: [
-    { name: 'Sugar / साखर (1 kg)', price: 42 },
+    { name: 'Sugar (1 kg)', price: 42 },
     { name: 'Fortune Sunflower Oil (1 Litre Pouch)', price: 135 },
-    { name: 'Kolam Rice / तांदूळ (1 kg)', price: 65 },
-    { name: 'Toor Dal / तूर डाळ (1 kg Premium)', price: 160 },
+    { name: 'Kolam Rice (1 kg)', price: 65 },
+    { name: 'Toor Dal  (1 kg Premium)', price: 160 },
     { name: 'Tata Salt (1 kg Vacuum Evaporated)', price: 28 },
-    { name: 'Wheat Flour / आटा (5 kg Fresh Chakki)', price: 210 },
-    { name: 'Society Tea Powder / चहा पावडर 250g', price: 125 },
+    { name: 'Wheat Flour (5 kg Fresh Chakki)', price: 210 },
+    { name: 'Society Tea Powder  250g', price: 125 },
     { name: 'Surf Excel Detergent Powder 1kg', price: 140 },
     { name: 'Good Day Butter Biscuit (Pack of 4)', price: 40 },
     { name: 'Colgate Strong Teeth Toothpaste 150g', price: 95 },
@@ -104,7 +104,7 @@ export const CATEGORY_PRESET_ITEMS: Record<ShopCategory, PresetItem[]> = {
   CLOTHING: [
     { name: 'Cotton Formal Full Sleeves Shirt', price: 650 },
     { name: 'Men Formal Trousers / Chinos', price: 850 },
-    { name: 'Cotton Dailywear Saree / साडी', price: 1200 },
+    { name: 'Cotton Dailywear Saree', price: 1200 },
     { name: 'Kids T-Shirt & Shorts Combo Set', price: 450 },
     { name: 'Premium Cotton Bath Towel (Large)', price: 280 },
     { name: 'School Uniform Set with Badge', price: 750 }

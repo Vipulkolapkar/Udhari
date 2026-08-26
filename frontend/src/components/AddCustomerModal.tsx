@@ -61,7 +61,7 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
               <input
                 type="text"
                 className="form-input"
-                placeholder={language === 'mr' ? 'उदा. सचिन पाटील' : language === 'hi' ? 'उदा. सचिन पाटिल' : 'e.g. John Doe'}
+                placeholder={language === 'mr' ? 'e.g. Ramesh ' : false ? 'e.g. Ramesh ' : 'e.g. John Doe'}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
@@ -122,7 +122,7 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
               <input
                 type="text"
                 className="form-input"
-                placeholder={language === 'mr' ? 'उदा. शिवाजी चौक, फ्लॅट २०२' : language === 'hi' ? 'उदा. शिवाजी चौक, फ्लैट २०२' : 'e.g. 123 Main Street'}
+                placeholder={language === 'mr' ? '.  ,  ' : false ? '.  ,  ' : 'e.g. 123 Main Street'}
                 value={landmark}
                 onChange={(e) => setLandmark(e.target.value)}
               />

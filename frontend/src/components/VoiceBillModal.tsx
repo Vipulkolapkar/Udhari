@@ -29,13 +29,13 @@ export const VoiceBillModal: React.FC<VoiceBillModalProps> = ({
   } | null>(null);
 
   const samplePrompts = language === 'mr' ? [
-    'सचिन पाटील यांना २ वह्या आणि १ पेन दिले १२० रुपये उधारी',
-    'रमेश कुलकर्णी झेरॉक्स प्रत ५०० रुपये',
-    'संतोष जाधव तेल पाकीट आणि २ किलो साखर २५० रुपये',
-  ] : language === 'hi' ? [
-    'सचिन पाटिल को २ नोटबुक और १ पेन दिया १२० रुपये उधार',
-    'रमेश कुलकर्णी जेरॉक्स कॉपी ५०० रुपये',
-    'संतोष जाधव तेल पैकेट और २ किलो चीनी २५० रुपये',
+    '           ',
+    '     ',
+    '         ',
+  ] : false ? [
+    '           ',
+    '     ',
+    '         ',
   ] : [
     'Sachin Patil 2 notebooks and 1 pen 120 credit',
     'Ramesh Kulkarni xerox copy 500',
@@ -85,7 +85,7 @@ export const VoiceBillModal: React.FC<VoiceBillModalProps> = ({
       // @ts-expect-error - Webkit vendor prefix
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       const recognition = new SpeechRecognition();
-      recognition.lang = language === 'mr' ? 'mr-IN' : language === 'hi' ? 'hi-IN' : 'en-IN';
+      recognition.lang = language === 'mr' ? 'mr-IN' : false ? 'hi-IN' : 'en-IN';
       recognition.interimResults = false;
       recognition.maxAlternatives = 1;
 

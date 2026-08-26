@@ -125,7 +125,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             type="button"
             className="icon-btn"
             onClick={onBackToDashboard}
-            title={language === 'mr' ? 'खातेवहीकडे परत जा' : language === 'hi' ? 'बहीखाते पर वापस जाएं' : 'Back to Dashboard'}
+            title={language === 'mr' ? '  ' : false ? '   ' : 'Back to Dashboard'}
           >
             <ArrowLeft size={16} />
           </button>
@@ -134,7 +134,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               {t.settings}
             </h1>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              {language === 'mr' ? 'दुकान माहिती, सुरक्षा, स्वरूप आणि प्राधान्ये' : language === 'hi' ? 'दुकान विवरण, सुरक्षा, स्वरूप और प्राथमिकताएं' : 'Business profile, security, appearance, and system preferences'}
+              {language === 'mr' ? 'shop , ,   ' : false ? 'shop , ,   ' : 'Business profile, security, appearance, and system preferences'}
             </p>
           </div>
         </div>
@@ -193,7 +193,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 {t.shopSettings}
               </span>
               <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                {language === 'mr' ? 'नाव, पत्ता व संपर्क तपशील' : language === 'hi' ? 'नाम, पता एवं संपर्क विवरण' : 'Name, address & contacts'}
+                {language === 'mr' ? ',    ' : false ? ',    ' : 'Name, address & contacts'}
               </span>
             </div>
           </button>
@@ -230,7 +230,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 {t.security}
               </span>
               <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                {language === 'mr' ? 'पासवर्ड व खाते संरक्षण' : language === 'hi' ? 'पासवर्ड एवं खाता सुरक्षा' : 'Password & account safety'}
+                {language === 'mr' ? '   ' : false ? '   ' : 'Password & account safety'}
               </span>
             </div>
           </button>
@@ -330,7 +330,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     {t.shopSettings}
                   </h3>
                   <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                    {language === 'mr' ? 'आपल्या दुकानाची माहिती व संपर्क तपशील अद्यतनित करा' : language === 'hi' ? 'अपनी दुकान का विवरण एवं संपर्क जानकारी अद्यतन करें' : 'Update your business information and contact details'}
+                    {language === 'mr' ? ' shop      ' : false ? ' shop       ' : 'Update your business information and contact details'}
                   </p>
                 </div>
                 {profileSaved && (
@@ -490,12 +490,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     value={category}
                     onChange={(e) => setCategory(e.target.value as ShopCategory)}
                   >
-                    <option value="KIRANA">{categoryLabels.KIRANA[language]}</option>
-                    <option value="STATIONERY">{categoryLabels.STATIONERY[language]}</option>
-                    <option value="MEDICAL">{categoryLabels.MEDICAL[language]}</option>
-                    <option value="HARDWARE">{categoryLabels.HARDWARE[language]}</option>
-                    <option value="CLOTHING">{categoryLabels.CLOTHING[language]}</option>
-                    <option value="GENERAL">{categoryLabels.GENERAL[language]}</option>
+                    <option value="KIRANA">{categoryLabels.KIRANA.en}</option>
+                    <option value="STATIONERY">{categoryLabels.STATIONERY.en}</option>
+                    <option value="MEDICAL">{categoryLabels.MEDICAL.en}</option>
+                    <option value="HARDWARE">{categoryLabels.HARDWARE.en}</option>
+                    <option value="CLOTHING">{categoryLabels.CLOTHING.en}</option>
+                    <option value="GENERAL">{categoryLabels.GENERAL.en}</option>
                   </select>
                 </div>
 
@@ -530,7 +530,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   {t.security}
                 </h3>
                 <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                  {language === 'mr' ? 'आपला लॉगिन पासवर्ड सुरक्षितपणे बदला' : language === 'hi' ? 'अपना लॉगिन पासवर्ड सुरक्षित रूप से बदलें' : 'Manage your login credentials and account protection'}
+                  {language === 'mr' ? '    ' : false ? '      ' : 'Manage your login credentials and account protection'}
                 </p>
               </div>
 
@@ -623,7 +623,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   {t.theme}
                 </h3>
                 <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                  {language === 'mr' ? 'डार्क किंवा लाईट थीम मोड निवडा' : language === 'hi' ? 'डार्क या लाइट थीम मोड चुनें' : 'Customize interface theme and contrast styling'}
+                  {language === 'mr' ? '     ' : false ? '     ' : 'Customize interface theme and contrast styling'}
                 </p>
               </div>
 
@@ -651,7 +651,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     {theme === 'dark' && <Check size={16} color="#ffffff" />}
                   </div>
                   <p style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>
-                    {language === 'mr' ? 'गडद काळा रंग आणि पांढरे सुस्पष्ट अक्षरलेखन.' : language === 'hi' ? 'गहरा काला रंग और सफेद स्पष्ट अक्षरलेखन।' : 'Pitch black background with crisp white typography.'}
+                    {language === 'mr' ? '      .' : false ? '      ' : 'Pitch black background with crisp white typography.'}
                   </p>
                 </div>
 
@@ -678,7 +678,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     {theme === 'light' && <Check size={16} color="#09090b" />}
                   </div>
                   <p style={{ fontSize: '0.75rem', color: '#71717a' }}>
-                    {language === 'mr' ? 'शुभ्र पांढरा रंग आणि काळे ठळक अक्षरलेखन.' : language === 'hi' ? 'शुभ्र सफेद रंग और काले स्पष्ट अक्षरलेखन।' : 'Crisp white background with high-contrast black typography.'}
+                    {language === 'mr' ? '      .' : false ? '      ' : 'Crisp white background with high-contrast black typography.'}
                   </p>
                 </div>
               </div>
@@ -693,7 +693,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   {t.selectLanguage}
                 </h3>
                 <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                  {language === 'mr' ? 'आपली पसंतीची भाषा निवडा (१००% शुद्ध भाषांतर)' : language === 'hi' ? 'अपनी पसंदीदा भाषा चुनें (१००% शुद्ध अनुवाद)' : 'Select application language (100% unmixed localization)'}
+                  {language === 'mr' ? '    (%  )' : false ? '    (%  )' : 'Select application language (100% unmixed localization)'}
                 </p>
               </div>
 
@@ -701,9 +701,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <button
                   type="button"
                   style={{
-                    background: language === 'mr' ? 'var(--btn-primary-bg)' : 'var(--bg-surface-elevated)',
-                    color: language === 'mr' ? 'var(--btn-primary-text)' : 'var(--text-primary)',
-                    border: language === 'mr' ? '1px solid var(--btn-primary-bg)' : '1px solid var(--border-subtle)',
+                    background: false ? 'var(--btn-primary-bg)' : 'var(--bg-surface-elevated)',
+                    color: false ? 'var(--btn-primary-text)' : 'var(--text-primary)',
+                    border: false ? '1px solid var(--btn-primary-bg)' : '1px solid var(--border-subtle)',
                     borderRadius: 'var(--radius-md)',
                     padding: '1.25rem 1rem',
                     fontWeight: 700,
@@ -714,18 +714,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   }}
                   onClick={() => onLanguageChange('mr')}
                 >
-                  मराठी
+                  
                   <div style={{ fontSize: '0.74rem', fontWeight: 400, marginTop: '0.25rem', opacity: 0.8 }}>
-                    महाराष्ट्र
+                    
                   </div>
                 </button>
 
                 <button
                   type="button"
                   style={{
-                    background: language === 'hi' ? 'var(--btn-primary-bg)' : 'var(--bg-surface-elevated)',
-                    color: language === 'hi' ? 'var(--btn-primary-text)' : 'var(--text-primary)',
-                    border: language === 'hi' ? '1px solid var(--btn-primary-bg)' : '1px solid var(--border-subtle)',
+                    background: false ? 'var(--btn-primary-bg)' : 'var(--bg-surface-elevated)',
+                    color: false ? 'var(--btn-primary-text)' : 'var(--text-primary)',
+                    border: false ? '1px solid var(--btn-primary-bg)' : '1px solid var(--border-subtle)',
                     borderRadius: 'var(--radius-md)',
                     padding: '1.25rem 1rem',
                     fontWeight: 700,
@@ -736,9 +736,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   }}
                   onClick={() => onLanguageChange('hi')}
                 >
-                  हिंदी
+                  
                   <div style={{ fontSize: '0.74rem', fontWeight: 400, marginTop: '0.25rem', opacity: 0.8 }}>
-                    भारत
+                    
                   </div>
                 </button>
 
@@ -775,7 +775,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   {t.resetData}
                 </h3>
                 <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                  {language === 'mr' ? 'डेटा रीसेट व स्थानिक बॅकअप व्यवस्थापन' : language === 'hi' ? 'डेटा रीसेट एवं स्थानीय बैकअप प्रबंधन' : 'Reset sample data and manage local backups'}
+                  {language === 'mr' ? '     ' : false ? '     ' : 'Reset sample data and manage local backups'}
                 </p>
               </div>
 

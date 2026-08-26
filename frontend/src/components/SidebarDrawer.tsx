@@ -175,7 +175,7 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
           {/* Navigation Section */}
           <div className="sidebar-nav-group">
             <div className="sidebar-section-title">
-              {language === 'mr' ? 'मुख्य पर्याय' : language === 'hi' ? 'मुख्य विकल्प' : 'Navigation'}
+              {language === 'mr' ? ' ' : false ? ' ' : 'Navigation'}
             </div>
 
             <button
@@ -267,9 +267,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 <button
                   type="button"
                   style={{
-                    background: language === 'mr' ? 'var(--btn-primary-bg)' : 'var(--bg-surface-elevated)',
-                    color: language === 'mr' ? 'var(--btn-primary-text)' : 'var(--text-secondary)',
-                    border: language === 'mr' ? '1px solid var(--btn-primary-bg)' : '1px solid var(--border-subtle)',
+                    background: false ? 'var(--btn-primary-bg)' : 'var(--bg-surface-elevated)',
+                    color: false ? 'var(--btn-primary-text)' : 'var(--text-secondary)',
+                    border: false ? '1px solid var(--btn-primary-bg)' : '1px solid var(--border-subtle)',
                     borderRadius: 'var(--radius-sm)',
                     padding: '0.4rem 0.2rem',
                     fontSize: '0.75rem',
@@ -279,14 +279,14 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                   }}
                   onClick={() => onLanguageChange('mr')}
                 >
-                  मराठी
+                  
                 </button>
                 <button
                   type="button"
                   style={{
-                    background: language === 'hi' ? 'var(--btn-primary-bg)' : 'var(--bg-surface-elevated)',
-                    color: language === 'hi' ? 'var(--btn-primary-text)' : 'var(--text-secondary)',
-                    border: language === 'hi' ? '1px solid var(--btn-primary-bg)' : '1px solid var(--border-subtle)',
+                    background: false ? 'var(--btn-primary-bg)' : 'var(--bg-surface-elevated)',
+                    color: false ? 'var(--btn-primary-text)' : 'var(--text-secondary)',
+                    border: false ? '1px solid var(--btn-primary-bg)' : '1px solid var(--border-subtle)',
                     borderRadius: 'var(--radius-sm)',
                     padding: '0.4rem 0.2rem',
                     fontSize: '0.75rem',
@@ -296,7 +296,7 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                   }}
                   onClick={() => onLanguageChange('hi')}
                 >
-                  हिंदी
+                  
                 </button>
                 <button
                   type="button"

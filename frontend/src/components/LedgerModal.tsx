@@ -62,7 +62,7 @@ export const LedgerModal: React.FC<LedgerModalProps> = ({
           }}>
             <div>
               <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                {language === 'mr' ? 'मोबाईल क्रमांक' : language === 'hi' ? 'मोबाइल नंबर' : 'Phone Number'}
+                {language === 'mr' ? ' ' : false ? ' ' : 'Phone Number'}
               </span>
               <p style={{ fontSize: '0.95rem', fontWeight: 600, fontFamily: 'var(--font-mono)' }}>{customer.phone}</p>
               {customer.address_landmark && (
@@ -120,7 +120,7 @@ export const LedgerModal: React.FC<LedgerModalProps> = ({
                   const inv = entry.data as Invoice;
                   const isExpanded = expandedInvoiceId === inv.id;
                   const formattedDate = new Date(inv.created_at).toLocaleDateString(
-                    language === 'mr' ? 'mr-IN' : language === 'hi' ? 'hi-IN' : 'en-IN',
+                    language === 'mr' ? 'mr-IN' : false ? 'hi-IN' : 'en-IN',
                     {
                       day: 'numeric',
                       month: 'short',
@@ -166,7 +166,7 @@ export const LedgerModal: React.FC<LedgerModalProps> = ({
                           background: inv.status === 'PAID' ? 'var(--color-credit-bg)' : 'var(--color-debit-bg)',
                           color: inv.status === 'PAID' ? 'var(--color-credit)' : 'var(--color-debit)'
                         }}>
-                          {inv.status === 'PAID' ? t.settled : (language === 'mr' ? 'बाकी' : language === 'hi' ? 'बकाया' : 'PENDING')}
+                          {inv.status === 'PAID' ? t.settled : (language === 'mr' ? '' : false ? '' : 'PENDING')}
                         </span>
                       </div>
 
@@ -221,7 +221,7 @@ export const LedgerModal: React.FC<LedgerModalProps> = ({
                 } else {
                   const pay = entry.data as Payment;
                   const formattedDate = new Date(pay.created_at).toLocaleDateString(
-                    language === 'mr' ? 'mr-IN' : language === 'hi' ? 'hi-IN' : 'en-IN',
+                    language === 'mr' ? 'mr-IN' : false ? 'hi-IN' : 'en-IN',
                     {
                       day: 'numeric',
                       month: 'short',
@@ -263,7 +263,7 @@ export const LedgerModal: React.FC<LedgerModalProps> = ({
 
                       {pay.allocations && pay.allocations.length > 0 && (
                         <div style={{ marginTop: '0.35rem', fontSize: '0.72rem', color: 'var(--color-credit)', fontFamily: 'var(--font-mono)' }}>
-                          {language === 'mr' ? 'स्वयंचलित जुने बिल जमा:' : language === 'hi' ? 'पुराने बिल चुकता हुए:' : 'Settled Invoices:'} {pay.allocations.map((a) => `${a.invoice_number} (₹${a.allocated_amount})`).join(', ')}
+                          {language === 'mr' ? '   :' : false ? '   :' : 'Settled Invoices:'} {pay.allocations.map((a) => `${a.invoice_number} (${a.allocated_amount})`).join(', ')}
                         </div>
                       )}
                     </div>

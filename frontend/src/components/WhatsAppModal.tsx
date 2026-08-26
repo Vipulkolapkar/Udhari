@@ -50,22 +50,22 @@ export const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
 
     if (selectedLang === 'mr') {
       if (targetTone === 'urgent') {
-        return `सस्नेह नमस्कार ${name} जी,\n\nआपले ${shopName} कडे एकूण बाकी ₹${balance} बऱ्याच दिवसांपासून प्रलंबित आहे.\nहिशोब पूर्ण करण्यासाठी कृपया लवकरात लवकर संपर्क साधावा ही नम्र विनंती.\n\nधन्यवाद,\n${shopName}`;
+        return `  ${name} ,\n\n ${shopName}    ${balance}    .\n          .\n\n,\n${shopName}`;
       }
       if (targetTone === 'formal') {
-        return `नमस्ते ${name} जी,\n\nआपले ${shopName} कडे एकूण बाकी ₹${balance} शिल्लक आहे.\nकृपया या आठवड्यात बिल क्लिअर करावे ही विनंती. 🙏\n\nधन्यवाद,\n${shopName}`;
+        return ` ${name} ,\n\n ${shopName}    ${balance}  .\n       . \n\n,\n${shopName}`;
       }
-      return `नमस्कार ${name} जी,\n\nआशा आहे सर्व छान आहे. आपले ${shopName} चे उधारी बिल ₹${balance} शिल्लक आहे. जेव्हा जमेल तेव्हा सोयीनुसार देऊन जावे. काही घाई नाही. 🙏\n\nधन्यवाद,\n${shopName}`;
+      return ` ${name} ,\n\n    .  ${shopName}    ${balance}  .      .   . \n\n,\n${shopName}`;
     }
 
     if (selectedLang === 'hi') {
       if (targetTone === 'urgent') {
-        return `नमस्ते ${name} जी,\n\nआपका ${shopName} में कुल बकाया ₹${balance} काफी समय से लंबित है।\nकृपया जल्द से जल्द भुगतान करके हिसाब चुकता करें। 🙏\n\nधन्यवाद,\n${shopName}`;
+        return ` ${name} ,\n\n ${shopName}    ${balance}     \n         \n\n,\n${shopName}`;
       }
       if (targetTone === 'formal') {
-        return `नमस्ते ${name} जी,\n\nआपका ${shopName} में कुल बकाया ₹${balance} है।\nकृपया इस सप्ताह में भुगतान करने का कष्ट करें। 🙏\n\nधन्यवाद,\n${shopName}`;
+        return ` ${name} ,\n\n ${shopName}    ${balance} \n         \n\n,\n${shopName}`;
       }
-      return `नमस्ते ${name} जी,\n\nआशा है सब कुशल मंगल है। आपका ${shopName} का बकाया ₹${balance} है। जब भी सुविधा हो, आकर दे सकते हैं। 🙏\n\nधन्यवाद,\n${shopName}`;
+      return ` ${name} ,\n\n       ${shopName}   ${balance}     ,     \n\n,\n${shopName}`;
     }
 
     // English
@@ -119,7 +119,7 @@ export const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
           <div className="modal-title">
             <WhatsAppIcon size={20} color="var(--text-primary)" />
             <span>
-              {selectedLang === 'mr' ? 'व्हाट्सअ‍ॅप संदेश' : selectedLang === 'hi' ? 'व्हाट्सएप संदेश' : 'WhatsApp Message'} — {customer.name}
+              {selectedLang === 'mr' ? '‍ ' : selectedLang === 'hi' ? ' ' : 'WhatsApp Message'} — {customer.name}
             </span>
           </div>
           <button type="button" className="icon-btn" onClick={onClose}>
@@ -164,16 +164,16 @@ export const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.5rem' }}>
                 <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                  {selectedLang === 'mr' ? 'या ग्राहकाला पाठवलेले मागील संदेश' : selectedLang === 'hi' ? 'इस ग्राहक को भेजे गए पिछले संदेश' : 'Past Messages Sent to Customer'}
+                  {selectedLang === 'mr' ? ' Customer   ' : selectedLang === 'hi' ? ' Customer     ' : 'Past Messages Sent to Customer'}
                 </span>
                 <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                  {selectedLang === 'mr' ? 'डेटाबेसमध्ये सुरक्षित सेव्ह' : selectedLang === 'hi' ? 'डेटाबेस में सुरक्षित सेव' : 'Saved in Database'}
+                  {selectedLang === 'mr' ? '  ' : selectedLang === 'hi' ? '   ' : 'Saved in Database'}
                 </span>
               </div>
 
               {messageHistory.length === 0 ? (
                 <div style={{ padding: '2rem 1rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.84rem' }}>
-                  {selectedLang === 'mr' ? 'अद्याप कोणतेही संदेश पाठवले नाहीत.' : selectedLang === 'hi' ? 'अभी तक कोई संदेश नहीं भेजा गया है।' : 'No messages sent yet.'}
+                  {selectedLang === 'mr' ? '    .' : selectedLang === 'hi' ? '       ' : 'No messages sent yet.'}
                 </div>
               ) : (
                 <div style={{ maxHeight: '280px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
@@ -199,12 +199,12 @@ export const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
                           color: msg.tone === 'urgent' ? 'var(--color-debit)' : 'var(--text-secondary)'
                         }}>
                           {msg.tone === 'urgent'
-                            ? (selectedLang === 'mr' ? 'तातडीचे' : selectedLang === 'hi' ? 'अति आवश्यक' : 'Urgent')
+                            ? (selectedLang === 'mr' ? '' : selectedLang === 'hi' ? ' ' : 'Urgent')
                             : msg.tone === 'formal'
-                            ? (selectedLang === 'mr' ? 'औपचारिक' : selectedLang === 'hi' ? 'औपचारिक' : 'Formal')
+                            ? (selectedLang === 'mr' ? '' : selectedLang === 'hi' ? '' : 'Formal')
                             : msg.tone === 'custom'
-                            ? (selectedLang === 'mr' ? 'कस्टम संदेश' : selectedLang === 'hi' ? 'कस्टम संदेश' : 'Custom')
-                            : (selectedLang === 'mr' ? 'सौम्य' : selectedLang === 'hi' ? 'विनम्र' : 'Polite')
+                            ? (selectedLang === 'mr' ? ' ' : selectedLang === 'hi' ? ' ' : 'Custom')
+                            : (selectedLang === 'mr' ? '' : selectedLang === 'hi' ? '' : 'Polite')
                           }
                         </span>
                         <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
@@ -227,7 +227,7 @@ export const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
               {/* Tone Selection Chips (Polite, Formal, Urgent, Custom) */}
               <div>
                 <label className="form-label" style={{ marginBottom: '0.4rem' }}>
-                  {selectedLang === 'mr' ? 'संदेशाचा प्रकार व टोन निवडा' : selectedLang === 'hi' ? 'संदेश का प्रकार एवं टोन चुनें' : 'Choose Message Tone or Custom'}
+                  {selectedLang === 'mr' ? '    ' : selectedLang === 'hi' ? '     ' : 'Choose Message Tone or Custom'}
                 </label>
                 <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
                   {/* Polite */}
@@ -243,7 +243,7 @@ export const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
                     onClick={() => setTone('polite')}
                   >
                     <Sparkles size={13} style={{ display: 'inline', marginRight: '4px' }} />
-                    {selectedLang === 'mr' ? 'सौम्य' : selectedLang === 'hi' ? 'विनम्र' : 'Polite'}
+                    {selectedLang === 'mr' ? '' : selectedLang === 'hi' ? '' : 'Polite'}
                   </button>
 
                   {/* Formal */}
@@ -258,7 +258,7 @@ export const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
                     }}
                     onClick={() => setTone('formal')}
                   >
-                    {selectedLang === 'mr' ? 'औपचारिक' : selectedLang === 'hi' ? 'औपचारिक' : 'Formal'}
+                    {selectedLang === 'mr' ? '' : selectedLang === 'hi' ? '' : 'Formal'}
                   </button>
 
                   {/* Urgent */}
@@ -273,7 +273,7 @@ export const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
                     }}
                     onClick={() => setTone('urgent')}
                   >
-                    {selectedLang === 'mr' ? 'तातडीचे' : selectedLang === 'hi' ? 'अति आवश्यक' : 'Urgent'}
+                    {selectedLang === 'mr' ? '' : selectedLang === 'hi' ? ' ' : 'Urgent'}
                   </button>
 
                   {/* Custom Written Message Option */}
@@ -291,7 +291,7 @@ export const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
                     }}
                   >
                     <Edit3 size={13} style={{ display: 'inline', marginRight: '4px' }} />
-                    {selectedLang === 'mr' ? 'स्वतःचा संदेश लिहा' : selectedLang === 'hi' ? 'अपना संदेश लिखें' : 'Custom Message'}
+                    {selectedLang === 'mr' ? '  ' : selectedLang === 'hi' ? '  ' : 'Custom Message'}
                   </button>
                 </div>
               </div>
@@ -300,10 +300,10 @@ export const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
               <div className="form-group">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
                   <label className="form-label" style={{ margin: 0 }}>
-                    {selectedLang === 'mr' ? 'संदेश मजकूर (संपादन योग्य)' : selectedLang === 'hi' ? 'संदेश पाठ (संपादन योग्य)' : 'Message Content (Fully Editable)'}
+                    {selectedLang === 'mr' ? '  ( )' : selectedLang === 'hi' ? '  ( )' : 'Message Content (Fully Editable)'}
                   </label>
                   <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                    {customText.length} {selectedLang === 'mr' ? 'अक्षरे' : selectedLang === 'hi' ? 'अक्षर' : 'chars'}
+                    {customText.length} {selectedLang === 'mr' ? '' : selectedLang === 'hi' ? '' : 'chars'}
                   </span>
                 </div>
 
@@ -330,9 +330,9 @@ export const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
                   }}
                   placeholder={
                     selectedLang === 'mr'
-                      ? 'येथे ग्राहकासाठी स्वतःचा कोणताही संदेश टाईप करा...'
+                      ? ' Customer     ...'
                       : selectedLang === 'hi'
-                      ? 'यहाँ ग्राहक के लिए अपना कोई भी संदेश टाइप करें...'
+                      ? ' Customer        ...'
                       : 'Type your custom message for the customer here...'
                   }
                 />
@@ -355,9 +355,9 @@ export const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
                   <CheckCircle2 size={15} />
                   <span>
                     {selectedLang === 'mr'
-                      ? 'संदेश ग्राहकाच्या डेटाबेस खात्यामध्ये सुरक्षित सेव्ह झाला!'
+                      ? ' Customer     !'
                       : selectedLang === 'hi'
-                      ? 'संदेश ग्राहक के डेटाबेस खाते में सुरक्षित सेव हो गया!'
+                      ? ' Customer        !'
                       : 'Message saved to customer database record successfully!'}
                   </span>
                 </div>
@@ -366,9 +366,9 @@ export const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
               {/* Target Phone notice */}
               <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
                 {selectedLang === 'mr'
-                  ? <span>थेट <strong>+91 {customer.phone}</strong> वर पाठवले जाईल व खात्यात नोंद होईल.</span>
+                  ? <span> <strong>+91 {customer.phone}</strong>       .</span>
                   : selectedLang === 'hi'
-                  ? <span>सीधे <strong>+91 {customer.phone}</strong> पर भेजा जाएगा और खाते में दर्ज होगा।</span>
+                  ? <span> <strong>+91 {customer.phone}</strong>        </span>
                   : <span>Will be sent directly to <strong>+91 {customer.phone}</strong> and recorded in database.</span>
                 }
               </div>
@@ -381,8 +381,8 @@ export const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
           <button type="button" className="btn btn-outline" onClick={handleCopy}>
             {copied ? <Check size={14} color="var(--color-credit)" /> : <Copy size={14} />}
             {copied
-              ? (selectedLang === 'mr' ? 'कॉपी व सेव्ह झाले!' : selectedLang === 'hi' ? 'कॉपी और सेव हुआ!' : 'Copied & Saved!')
-              : (selectedLang === 'mr' ? 'कॉपी करा व सेव्ह करा' : selectedLang === 'hi' ? 'कॉपी करें और सेव करें' : 'Copy & Save')
+              ? (selectedLang === 'mr' ? '   !' : selectedLang === 'hi' ? '   !' : 'Copied & Saved!')
+              : (selectedLang === 'mr' ? '    ' : selectedLang === 'hi' ? '    ' : 'Copy & Save')
             }
           </button>
 
@@ -393,7 +393,7 @@ export const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
           >
             <WhatsAppIcon size={16} />
             <span>
-              {selectedLang === 'mr' ? 'व्हाट्सअ‍ॅपवर पाठवा व सेव्ह करा' : selectedLang === 'hi' ? 'व्हाट्सएप पर भेजें और सेव करें' : 'Send & Save to DB'}
+              {selectedLang === 'mr' ? '‍    ' : selectedLang === 'hi' ? '     ' : 'Send & Save to DB'}
             </span>
           </button>
         </div>

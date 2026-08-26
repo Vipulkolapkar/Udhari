@@ -62,7 +62,7 @@ export const CustomerCard: React.FC<CustomerCardProps> = ({
           title={t.giveCredit}
         >
           <Plus size={15} />
-          <span>{language === 'mr' ? 'उधारी द्या' : language === 'hi' ? 'उधार दें' : 'Give Credit'}</span>
+          <span>{language === 'mr' ? ' ' : false ? ' ' : 'Give Credit'}</span>
         </button>
 
         {/* ₹ Payment */}
@@ -73,7 +73,7 @@ export const CustomerCard: React.FC<CustomerCardProps> = ({
           title={t.gotPayment}
         >
           <ArrowDownLeft size={15} />
-          <span>{language === 'mr' ? 'जमा घ्या' : language === 'hi' ? 'जमा लें' : 'Got Payment'}</span>
+          <span>{language === 'mr' ? ' ' : false ? ' ' : 'Got Payment'}</span>
         </button>
 
         {/* WhatsApp Reminder */}

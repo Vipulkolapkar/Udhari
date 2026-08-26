@@ -313,12 +313,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   value={category}
                   onChange={(e) => setCategory(e.target.value as ShopCategory)}
                 >
-                  <option value="KIRANA">{categoryLabels.KIRANA.icon} {categoryLabels.KIRANA[language]}</option>
-                  <option value="STATIONERY">{categoryLabels.STATIONERY.icon} {categoryLabels.STATIONERY[language]}</option>
-                  <option value="MEDICAL">{categoryLabels.MEDICAL.icon} {categoryLabels.MEDICAL[language]}</option>
-                  <option value="HARDWARE">{categoryLabels.HARDWARE.icon} {categoryLabels.HARDWARE[language]}</option>
-                  <option value="CLOTHING">{categoryLabels.CLOTHING.icon} {categoryLabels.CLOTHING[language]}</option>
-                  <option value="GENERAL">{categoryLabels.GENERAL.icon} {categoryLabels.GENERAL[language]}</option>
+                  <option value="KIRANA">{categoryLabels.KIRANA.icon} {categoryLabels.KIRANA.en}</option>
+                  <option value="STATIONERY">{categoryLabels.STATIONERY.icon} {categoryLabels.STATIONERY.en}</option>
+                  <option value="MEDICAL">{categoryLabels.MEDICAL.icon} {categoryLabels.MEDICAL.en}</option>
+                  <option value="HARDWARE">{categoryLabels.HARDWARE.icon} {categoryLabels.HARDWARE.en}</option>
+                  <option value="CLOTHING">{categoryLabels.CLOTHING.icon} {categoryLabels.CLOTHING.en}</option>
+                  <option value="GENERAL">{categoryLabels.GENERAL.icon} {categoryLabels.GENERAL.en}</option>
                 </select>
               </div>
 
