@@ -80,6 +80,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   // OTP Verification States
   const [isPhoneVerified, setIsPhoneVerified] = useState(false);
+  const [isEmailVerified, setIsEmailVerified] = useState(false);
   const [otpModal, setOtpModal] = useState<{ type: 'PHONE' | 'EMAIL'; target: string } | null>(null);
 
   const handlePhoneChange = (val: string) => {
@@ -122,8 +123,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       return;
     }
 
-    // Require OTP verification
-    if (!isPhoneVerified) {
+    // Require Email for real Supabase OTP verification
+    if (email.trim() && !isEmailVerified) {
+      setOtpModal({ type: 'EMAIL', target: email.trim() });
+      return;
+    } else if (!email.trim() && !isPhoneVerified) {
       setOtpModal({ type: 'PHONE', target: phone.trim() });
       return;
     }
@@ -143,7 +147,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   };
 
   const handleOtpVerified = () => {
-    setIsPhoneVerified(true);
+    if (otpModal?.type === 'EMAIL') {
+      setIsEmailVerified(true);
+    } else {
+      setIsPhoneVerified(true);
+    }
+    
     onRegister({
       shop_name: shopName.trim(),
       owner_name: ownerName.trim(),

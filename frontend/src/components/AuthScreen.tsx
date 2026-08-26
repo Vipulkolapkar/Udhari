@@ -127,8 +127,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
       return;
     }
 
-    // Enforce OTP verification before completing business registration
-    if (!isPhoneVerified) {
+    // Require Email for real Supabase OTP verification
+    if (email.trim() && !isEmailVerified) {
+      setOtpModal({ type: 'EMAIL', target: email.trim() });
+      return;
+    } else if (!email.trim() && !isPhoneVerified) {
       setOtpModal({ type: 'PHONE', target: phone.trim() });
       return;
     }
@@ -149,24 +152,25 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   };
 
   const handleOtpVerified = () => {
-    if (otpModal?.type === 'PHONE') {
-      setIsPhoneVerified(true);
-      // Auto complete registration right after OTP is successfully verified!
-      onRegister({
-        shop_name: shopName.trim(),
-        owner_name: ownerName.trim(),
-        phone: phone.trim(),
-        whatsapp_phone: (sameAsPhone ? phone.trim() : whatsappPhone.trim()) || phone.trim(),
-        email: email.trim() || undefined,
-        password: registerPassword || undefined,
-        gstin: gstin.trim() || undefined,
-        shop_category: category,
-        address: address.trim() || undefined,
-        terms_accepted: termsAccepted
-      });
-    } else if (otpModal?.type === 'EMAIL') {
+    if (otpModal?.type === 'EMAIL') {
       setIsEmailVerified(true);
+    } else {
+      setIsPhoneVerified(true);
     }
+    
+    // Auto complete registration right after OTP is successfully verified!
+    onRegister({
+      shop_name: shopName.trim(),
+      owner_name: ownerName.trim(),
+      phone: phone.trim(),
+      whatsapp_phone: (sameAsPhone ? phone.trim() : whatsappPhone.trim()) || phone.trim(),
+      email: email.trim() || undefined,
+      password: registerPassword || undefined,
+      gstin: gstin.trim() || undefined,
+      shop_category: category,
+      address: address.trim() || undefined,
+      terms_accepted: termsAccepted
+    });
     setOtpModal(null);
   };
 
