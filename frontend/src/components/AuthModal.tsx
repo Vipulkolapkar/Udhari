@@ -480,7 +480,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     className="form-input"
                     placeholder="e.g. 9822012345"
                     value={loginPhone}
-                    onChange={(e) => setLoginPhone(e.target.value)}
+                    onChange={(e) => setLoginPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
                     required
                     autoFocus
                   />
@@ -634,7 +634,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   className="form-input"
                   placeholder="e.g. 9822012345"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
                   required
                 />
               </div>
