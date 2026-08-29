@@ -357,7 +357,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   type="tel"
                   className="form-input"
                   value={whatsappPhone}
-                  onChange={(e) => setWhatsappPhone(e.target.value)}
+                  onChange={(e) => setWhatsappPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
                   required
                 />
               </div>

@@ -2,629 +2,231 @@
 
 import React, { useState } from 'react';
 import {
-  Building2,
-  Lock,
+  ArrowLeft,
   Moon,
   Sun,
-  Globe,
+  Shield,
   RotateCcw,
   Check,
-  AlertCircle,
-  Phone,
-  Mail,
-  MapPin,
-  Shield,
-  Palette,
-  Database,
-  ArrowLeft
+  Building2,
+  Lock,
+  Download,
+  CheckCircle2,
+  Loader2
 } from 'lucide-react';
-import { ShopUser, ShopCategory, Language, ThemeMode } from '../types';
-import { getTranslation, categoryLabels } from '../lib/translations';
-import { OtpVerificationModal } from './OtpVerificationModal';
+import { ShopUser, Language, ThemeMode, Customer, Invoice, Payment } from '../types';
+import { getTranslation } from '../lib/translations';
 
 interface SettingsViewProps {
   currentShop: ShopUser | null;
   language: Language;
   theme: ThemeMode;
-  onBackToDashboard: () => void;
+  customers?: Customer[];
+  invoices?: Invoice[];
+  payments?: Payment[];
   onLanguageChange: (lang: Language) => void;
   onThemeChange: (theme: ThemeMode) => void;
-  onSaveShopSettings: (updatedShop: Partial<ShopUser>) => void;
   onResetData: () => void;
+  onSaveShopSettings: (updatedShop: Partial<ShopUser>) => void;
+  onBackToDashboard: () => void;
 }
 
-type SettingsTab = 'PROFILE' | 'SECURITY' | 'APPEARANCE' | 'LANGUAGE' | 'DATA';
+type SettingsTab = 'APPEARANCE' | 'SECURITY' | 'DATA';
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
   currentShop,
   language,
   theme,
-  onBackToDashboard,
-  onLanguageChange,
+  customers = [],
+  invoices = [],
+  payments = [],
   onThemeChange,
+  onResetData,
   onSaveShopSettings,
-  onResetData
+  onBackToDashboard
 }) => {
   const t = getTranslation(language);
-  const [activeTab, setActiveTab] = useState<SettingsTab>('PROFILE');
+  const [activeTab, setActiveTab] = useState<SettingsTab>('APPEARANCE');
 
-  // Profile State
-  const [shopName, setShopName] = useState(currentShop?.shop_name || '');
-  const [ownerName, setOwnerName] = useState(currentShop?.owner_name || '');
-  const [phone, setPhone] = useState(currentShop?.phone || '');
-  const [whatsappPhone, setWhatsappPhone] = useState(currentShop?.whatsapp_phone || currentShop?.phone || '');
-  const [email, setEmail] = useState(currentShop?.email || '');
-  const [gstin, setGstin] = useState(currentShop?.gstin || '');
-  const [category, setCategory] = useState<ShopCategory>(currentShop?.shop_category || 'GENERAL');
-  const [address, setAddress] = useState(currentShop?.address || '');
-  const [profileSaved, setProfileSaved] = useState(false);
-
-  // OTP Verification State in Settings
-  const [isPhoneVerified, setIsPhoneVerified] = useState(true); // default true for existing shop, resets on edit
-  const [isEmailVerified, setIsEmailVerified] = useState(true);
-  const [otpModal, setOtpModal] = useState<{ type: 'PHONE' | 'EMAIL'; target: string } | null>(null);
-
-  // Security State
+  // Password Change
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [passwordSuccess, setPasswordSuccess] = useState(false);
+  const [passwordMsg, setPasswordMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSaveShopSettings({
-      shop_name: shopName.trim(),
-      owner_name: ownerName.trim(),
-      phone: phone.trim(),
-      whatsapp_phone: whatsappPhone.trim() || phone.trim(),
-      email: email.trim() || undefined,
-      gstin: gstin.trim() || undefined,
-      shop_category: category,
-      address: address.trim() || undefined
-    });
-    setProfileSaved(true);
-    setTimeout(() => setProfileSaved(false), 2000);
+    if (!newPassword || newPassword.length < 6) {
+      setPasswordMsg({ type: 'error', text: 'New password must be at least 6 characters.' });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordMsg({ type: 'error', text: 'New passwords do not match.' });
+      return;
+    }
+
+    setIsSavingPassword(true);
+    setPasswordMsg(null);
+
+    try {
+      onSaveShopSettings({ password: newPassword });
+      setPasswordMsg({ type: 'success', text: 'Password updated successfully!' });
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err: any) {
+      setPasswordMsg({ type: 'error', text: err.message || 'Failed to update password.' });
+    } finally {
+      setIsSavingPassword(false);
+    }
   };
 
-  const handleChangePassword = (e: React.FormEvent) => {
-    e.preventDefault();
-    setPasswordError(null);
-    setPasswordSuccess(false);
+  const handleExportData = () => {
+    const backupObj = {
+      exportDate: new Date().toISOString(),
+      shop: currentShop,
+      customers,
+      invoices,
+      payments
+    };
 
-    if (newPassword.length < 6) {
-      setPasswordError(t.passwordTooShort);
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      setPasswordError(t.passwordMismatchError);
-      return;
-    }
-
-    onSaveShopSettings({ password: newPassword });
-    setPasswordSuccess(true);
-    setCurrentPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
-    setTimeout(() => setPasswordSuccess(false), 2500);
+    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(backupObj, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute('href', dataStr);
+    downloadAnchor.setAttribute('download', `udhari_backup_${currentShop?.shop_name || 'shop'}_${new Date().toISOString().slice(0, 10)}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%' }}>
-      {/* Top Header */}
+    <div style={{ maxWidth: '900px', margin: '0 auto', paddingBottom: '3rem' }}>
+      {/* Header */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingBottom: '1.25rem',
-        borderBottom: '1px solid var(--border-subtle)'
+        marginBottom: '1.5rem',
+        paddingBottom: '1rem',
+        borderBottom: '1px solid var(--border-medium)'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <button
             type="button"
             className="icon-btn"
             onClick={onBackToDashboard}
-            title={language === 'mr' ? '  ' : false ? '   ' : 'Back to Dashboard'}
+            title="Back to Dashboard"
           >
-            <ArrowLeft size={16} />
+            <ArrowLeft size={18} />
           </button>
           <div>
-            <h1 style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
-              {t.settings}
+            <h1 style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+              Settings & Preferences
             </h1>
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              {language === 'mr' ? 'shop , ,   ' : false ? 'shop , ,   ' : 'Business profile, security, appearance, and system preferences'}
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>
+              Customize application appearance, security, and data backups
             </p>
           </div>
         </div>
       </div>
 
-      {/* Settings Grid with Expanded Internal Sidebar */}
+      {/* Main Container */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: '280px 1fr',
-        gap: '1.75rem',
-        alignItems: 'start',
-        minHeight: '620px',
-        width: '100%'
+        gridTemplateColumns: '220px 1fr',
+        gap: '1.5rem',
+        background: 'var(--bg-surface)',
+        border: '1px solid var(--border-medium)',
+        borderRadius: 'var(--radius-sm)',
+        overflow: 'hidden'
       }}>
-        {/* Internal Settings Sub-Sidebar with Generous Length */}
-        <nav style={{
-          background: 'var(--bg-surface)',
-          border: '1px solid var(--border-subtle)',
-          borderRadius: 'var(--radius-md)',
-          padding: '0.85rem',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '0.5rem',
-          position: 'sticky',
-          top: '1.5rem'
-        }}>
-          {/* 1. Profile Tab */}
-          <button
-            type="button"
-            className={`sidebar-nav-item ${activeTab === 'PROFILE' ? 'active' : ''}`}
-            onClick={() => setActiveTab('PROFILE')}
-            style={{
-              padding: '0.85rem 1rem',
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: '0.75rem',
-              borderRadius: 'var(--radius-sm)'
-            }}
-          >
-            <div style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: 'var(--radius-sm)',
-              background: activeTab === 'PROFILE' ? 'var(--btn-primary-bg)' : 'var(--bg-surface-elevated)',
-              color: activeTab === 'PROFILE' ? 'var(--btn-primary-text)' : 'var(--text-primary)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-              marginTop: '1px'
-            }}>
-              <Building2 size={16} />
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', minWidth: 0 }}>
-              <span style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                {t.shopSettings}
-              </span>
-              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                {language === 'mr' ? ',    ' : false ? ',    ' : 'Name, address & contacts'}
-              </span>
-            </div>
-          </button>
-
-          {/* 2. Security Tab */}
-          <button
-            type="button"
-            className={`sidebar-nav-item ${activeTab === 'SECURITY' ? 'active' : ''}`}
-            onClick={() => setActiveTab('SECURITY')}
-            style={{
-              padding: '0.85rem 1rem',
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: '0.75rem',
-              borderRadius: 'var(--radius-sm)'
-            }}
-          >
-            <div style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: 'var(--radius-sm)',
-              background: activeTab === 'SECURITY' ? 'var(--btn-primary-bg)' : 'var(--bg-surface-elevated)',
-              color: activeTab === 'SECURITY' ? 'var(--btn-primary-text)' : 'var(--text-primary)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-              marginTop: '1px'
-            }}>
-              <Lock size={16} />
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', minWidth: 0 }}>
-              <span style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                {t.security}
-              </span>
-              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                {language === 'mr' ? '   ' : false ? '   ' : 'Password & account safety'}
-              </span>
-            </div>
-          </button>
-
-          {/* 3. Appearance Tab */}
-          <button
-            type="button"
-            className={`sidebar-nav-item ${activeTab === 'APPEARANCE' ? 'active' : ''}`}
-            onClick={() => setActiveTab('APPEARANCE')}
-            style={{
-              padding: '0.85rem 1rem',
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: '0.75rem',
-              borderRadius: 'var(--radius-sm)'
-            }}
-          >
-            <div style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: 'var(--radius-sm)',
-              background: activeTab === 'APPEARANCE' ? 'var(--btn-primary-bg)' : 'var(--bg-surface-elevated)',
-              color: activeTab === 'APPEARANCE' ? 'var(--btn-primary-text)' : 'var(--text-primary)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-              marginTop: '1px'
-            }}>
-              <Palette size={16} />
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', minWidth: 0 }}>
-              <span style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                {t.theme}
-              </span>
-              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                Dark and Light mode styles
-              </span>
-            </div>
-          </button>
-
-          {/* 4. Data Reset Tab */}
-          <button
-            type="button"
-            className={`sidebar-nav-item ${activeTab === 'DATA' ? 'active' : ''}`}
-            onClick={() => setActiveTab('DATA')}
-            style={{
-              padding: '0.85rem 1rem',
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: '0.75rem',
-              borderRadius: 'var(--radius-sm)'
-            }}
-          >
-            <div style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: 'var(--radius-sm)',
-              background: activeTab === 'DATA' ? 'var(--btn-primary-bg)' : 'var(--bg-surface-elevated)',
-              color: activeTab === 'DATA' ? 'var(--btn-primary-text)' : 'var(--text-primary)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-              marginTop: '1px'
-            }}>
-              <Database size={16} />
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', minWidth: 0 }}>
-              <span style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                {t.resetData}
-              </span>
-              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                Reset mock database
-              </span>
-            </div>
-          </button>
-        </nav>
-
-        {/* Settings Content Area with Extended Length & Padding */}
+        {/* Navigation Sidebar */}
         <div style={{
-          background: 'var(--bg-surface)',
-          border: '1px solid var(--border-subtle)',
-          borderRadius: 'var(--radius-md)',
-          padding: '2rem',
-          minHeight: '560px',
-          display: 'flex',
-          flexDirection: 'column',
-          boxShadow: 'var(--shadow-sm)'
+          background: 'var(--bg-surface-elevated)',
+          borderRight: '1px solid var(--border-medium)',
+          padding: '1rem'
         }}>
-          {/* 1. Shop Profile & Contact */}
-          {activeTab === 'PROFILE' && (
-            <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.75rem' }}>
-                <div>
-                  <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                    {t.shopSettings}
-                  </h3>
-                  <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                    {language === 'mr' ? ' shop      ' : false ? ' shop       ' : 'Update your business information and contact details'}
-                  </p>
-                </div>
-                {profileSaved && (
-                  <span style={{ fontSize: '0.8rem', color: 'var(--color-credit)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                    <Check size={14} /> {t.settingsSavedSuccess}
-                  </span>
-                )}
-              </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+            <button
+              type="button"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.65rem',
+                padding: '0.65rem 0.85rem',
+                borderRadius: 'var(--radius-sm)',
+                border: 'none',
+                background: activeTab === 'APPEARANCE' ? 'var(--btn-primary-bg)' : 'transparent',
+                color: activeTab === 'APPEARANCE' ? 'var(--btn-primary-text)' : 'var(--text-primary)',
+                fontWeight: activeTab === 'APPEARANCE' ? 700 : 500,
+                fontSize: '0.86rem',
+                cursor: 'pointer',
+                textAlign: 'left'
+              }}
+              onClick={() => setActiveTab('APPEARANCE')}
+            >
+              <Moon size={16} />
+              <span>Appearance</span>
+            </button>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div className="form-group">
-                  <label className="form-label">{t.shopName} *</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    value={shopName}
-                    onChange={(e) => setShopName(e.target.value)}
-                    required
-                  />
-                </div>
+            <button
+              type="button"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.65rem',
+                padding: '0.65rem 0.85rem',
+                borderRadius: 'var(--radius-sm)',
+                border: 'none',
+                background: activeTab === 'SECURITY' ? 'var(--btn-primary-bg)' : 'transparent',
+                color: activeTab === 'SECURITY' ? 'var(--btn-primary-text)' : 'var(--text-primary)',
+                fontWeight: activeTab === 'SECURITY' ? 700 : 500,
+                fontSize: '0.86rem',
+                cursor: 'pointer',
+                textAlign: 'left'
+              }}
+              onClick={() => setActiveTab('SECURITY')}
+            >
+              <Shield size={16} />
+              <span>Security</span>
+            </button>
 
-                <div className="form-group">
-                  <label className="form-label">{t.ownerName} *</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    value={ownerName}
-                    onChange={(e) => setOwnerName(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
+            <button
+              type="button"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.65rem',
+                padding: '0.65rem 0.85rem',
+                borderRadius: 'var(--radius-sm)',
+                border: 'none',
+                background: activeTab === 'DATA' ? 'var(--btn-primary-bg)' : 'transparent',
+                color: activeTab === 'DATA' ? 'var(--btn-primary-text)' : 'var(--text-primary)',
+                fontWeight: activeTab === 'DATA' ? 700 : 500,
+                fontSize: '0.86rem',
+                cursor: 'pointer',
+                textAlign: 'left'
+              }}
+              onClick={() => setActiveTab('DATA')}
+            >
+              <RotateCcw size={16} />
+              <span>Data & Backup</span>
+            </button>
+          </div>
+        </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div className="form-group">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
-                    <label className="form-label" style={{ margin: 0 }}>
-                      <Phone size={12} style={{ display: 'inline', marginRight: '4px' }} />
-                      {t.phone} *
-                    </label>
-                    {isPhoneVerified ? (
-                      <span style={{ fontSize: '0.72rem', color: 'var(--color-credit)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '2px' }}>
-                        <Check size={12} /> Verified
-                      </span>
-                    ) : phone.length >= 10 ? (
-                      <button
-                        type="button"
-                        style={{
-                          background: 'transparent',
-                          border: 'none',
-                          color: 'var(--text-primary)',
-                          fontSize: '0.72rem',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          textDecoration: 'underline',
-                          padding: 0
-                        }}
-                        onClick={() => setOtpModal({ type: 'PHONE', target: phone })}
-                      >
-                        Verify OTP
-                      </button>
-                    ) : null}
-                  </div>
-                  <input
-                    type="tel"
-                    className="form-input"
-                    value={phone}
-                    onChange={(e) => {
-                      setPhone(e.target.value);
-                      if (e.target.value !== currentShop?.phone) {
-                        setIsPhoneVerified(false);
-                      }
-                    }}
-                    required
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">
-                    <span style={{ color: 'var(--color-credit)', marginRight: '4px' }}>💬</span>
-                    {t.whatsappNumber} *
-                  </label>
-                  <input
-                    type="tel"
-                    className="form-input"
-                    value={whatsappPhone}
-                    onChange={(e) => setWhatsappPhone(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div className="form-group">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
-                    <label className="form-label" style={{ margin: 0 }}>
-                      <Mail size={12} style={{ display: 'inline', marginRight: '4px' }} />
-                      {t.email}
-                    </label>
-                    {isEmailVerified ? (
-                      <span style={{ fontSize: '0.72rem', color: 'var(--color-credit)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '2px' }}>
-                        <Check size={12} /> Verified
-                      </span>
-                    ) : email.includes('@') && email.includes('.') ? (
-                      <button
-                        type="button"
-                        style={{
-                          background: 'transparent',
-                          border: 'none',
-                          color: 'var(--text-primary)',
-                          fontSize: '0.72rem',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          textDecoration: 'underline',
-                          padding: 0
-                        }}
-                        onClick={() => setOtpModal({ type: 'EMAIL', target: email })}
-                      >
-                        Verify OTP
-                      </button>
-                    ) : null}
-                  </div>
-                  <input
-                    type="email"
-                    className="form-input"
-                    placeholder="owner@example.com"
-                    value={email}
-                    onChange={(e) => {
-                      setEmail(e.target.value);
-                      if (e.target.value !== currentShop?.email) {
-                        setIsEmailVerified(false);
-                      }
-                    }}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">
-                    <Database size={12} style={{ display: 'inline', marginRight: '4px' }} />
-                    {t.gstin}
-                  </label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    placeholder="27AAAAA0000A1Z5"
-                    value={gstin}
-                    onChange={(e) => setGstin(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div className="form-group">
-                  <label className="form-label">{t.shopCategory} *</label>
-                  <select
-                    className="form-select"
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value as ShopCategory)}
-                  >
-                    <option value="KIRANA">{categoryLabels.KIRANA.en}</option>
-                    <option value="STATIONERY">{categoryLabels.STATIONERY.en}</option>
-                    <option value="MEDICAL">{categoryLabels.MEDICAL.en}</option>
-                    <option value="HARDWARE">{categoryLabels.HARDWARE.en}</option>
-                    <option value="CLOTHING">{categoryLabels.CLOTHING.en}</option>
-                    <option value="GENERAL">{categoryLabels.GENERAL.en}</option>
-                    <option value="OTHER">{categoryLabels.OTHER.en}</option>
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">
-                    <MapPin size={12} style={{ display: 'inline', marginRight: '4px' }} />
-                    {t.address}
-                  </label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
-                <button type="submit" className="btn btn-primary">
-                  <Check size={14} />
-                  <span>{t.updateProfile}</span>
-                </button>
-              </div>
-            </form>
-          )}
-
-          {/* 2. Security & Password */}
-          {activeTab === 'SECURITY' && (
-            <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
-              <div style={{ borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.75rem' }}>
-                <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                  {t.security}
-                </h3>
-                <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                  {language === 'mr' ? '    ' : false ? '      ' : 'Manage your login credentials and account protection'}
-                </p>
-              </div>
-
-              {passwordSuccess && (
-                <div style={{
-                  background: 'var(--color-credit-bg)',
-                  border: '1px solid var(--color-credit-border)',
-                  color: 'var(--color-credit)',
-                  padding: '0.65rem 0.85rem',
-                  borderRadius: 'var(--radius-sm)',
-                  fontSize: '0.82rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.45rem'
-                }}>
-                  <Check size={15} />
-                  {t.passwordChangedSuccess}
-                </div>
-              )}
-
-              {passwordError && (
-                <div style={{
-                  background: 'var(--color-debit-bg)',
-                  border: '1px solid var(--color-debit-border)',
-                  color: 'var(--color-debit)',
-                  padding: '0.65rem 0.85rem',
-                  borderRadius: 'var(--radius-sm)',
-                  fontSize: '0.82rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.45rem'
-                }}>
-                  <AlertCircle size={15} />
-                  {passwordError}
-                </div>
-              )}
-
-              <div className="form-group">
-                <label className="form-label">{t.currentPassword}</label>
-                <input
-                  type="password"
-                  className="form-input"
-                  placeholder="••••••••"
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div className="form-group">
-                  <label className="form-label">{t.newPassword}</label>
-                  <input
-                    type="password"
-                    className="form-input"
-                    placeholder="••••••••"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    required
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">{t.confirmPassword}</label>
-                  <input
-                    type="password"
-                    className="form-input"
-                    placeholder="••••••••"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
-                <button type="submit" className="btn btn-primary">
-                  <Lock size={14} />
-                  <span>{t.changePassword}</span>
-                </button>
-              </div>
-            </form>
-          )}
-
-          {/* 3. Appearance / Theme Mode */}
+        {/* Tab Content */}
+        <div style={{ padding: '1.5rem' }}>
+          {/* 1. Theme Appearance */}
           {activeTab === 'APPEARANCE' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
-              <div style={{ borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.75rem' }}>
-                <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                  {t.theme}
+            <div>
+              <div style={{ marginBottom: '1.25rem', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.75rem' }}>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.25rem 0' }}>
+                  Theme Appearance
                 </h3>
-                <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                  {language === 'mr' ? '     ' : false ? '     ' : 'Customize interface theme and contrast styling'}
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0 }}>
+                  Choose your preferred visual theme for the application
                 </p>
               </div>
 
@@ -633,9 +235,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <div
                   style={{
                     background: '#09090b',
-                    border: theme === 'dark' ? '2px solid #ffffff' : '1px solid var(--border-subtle)',
-                    borderRadius: 'var(--radius-md)',
-                    padding: '1.2rem',
+                    border: theme === 'dark' ? '2px solid var(--text-primary)' : '1px solid var(--border-subtle)',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '1.25rem',
                     cursor: 'pointer',
                     display: 'flex',
                     flexDirection: 'column',
@@ -645,14 +247,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   onClick={() => onThemeChange('dark')}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: '#ffffff', fontWeight: 600, fontSize: '0.92rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#ffffff', fontWeight: 700, fontSize: '0.92rem' }}>
                       <Moon size={16} />
-                      <span>{t.darkMode}</span>
+                      <span>Dark Theme (Recommended)</span>
                     </div>
                     {theme === 'dark' && <Check size={16} color="#ffffff" />}
                   </div>
-                  <p style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>
-                    {language === 'mr' ? '      .' : false ? '      ' : 'Pitch black background with crisp white typography.'}
+                  <p style={{ fontSize: '0.78rem', color: '#a1a1aa', margin: 0 }}>
+                    Modern, high-contrast dark theme with reduced eye fatigue.
                   </p>
                 </div>
 
@@ -661,8 +263,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   style={{
                     background: '#ffffff',
                     border: theme === 'light' ? '2px solid #09090b' : '1px solid var(--border-subtle)',
-                    borderRadius: 'var(--radius-md)',
-                    padding: '1.2rem',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '1.25rem',
                     cursor: 'pointer',
                     display: 'flex',
                     flexDirection: 'column',
@@ -672,117 +274,112 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   onClick={() => onThemeChange('light')}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: '#09090b', fontWeight: 600, fontSize: '0.92rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#09090b', fontWeight: 700, fontSize: '0.92rem' }}>
                       <Sun size={16} />
-                      <span>{t.lightMode}</span>
+                      <span>Light Theme</span>
                     </div>
                     {theme === 'light' && <Check size={16} color="#09090b" />}
                   </div>
-                  <p style={{ fontSize: '0.75rem', color: '#71717a' }}>
-                    {language === 'mr' ? '      .' : false ? '      ' : 'Crisp white background with high-contrast black typography.'}
+                  <p style={{ fontSize: '0.78rem', color: '#71717a', margin: 0 }}>
+                    Clean, bright aesthetic with high-contrast text tokens.
                   </p>
                 </div>
               </div>
             </div>
           )}
 
-          {/* 4. Language & Localization */}
-          {activeTab === 'LANGUAGE' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
-              <div style={{ borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.75rem' }}>
-                <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                  {t.selectLanguage}
+          {/* 2. Security */}
+          {activeTab === 'SECURITY' && (
+            <div>
+              <div style={{ marginBottom: '1.25rem', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.75rem' }}>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.25rem 0' }}>
+                  Account Security & Password
                 </h3>
-                <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                  {language === 'mr' ? '    (%  )' : false ? '    (%  )' : 'Select application language (100% unmixed localization)'}
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0 }}>
+                  Update your shop access password
                 </p>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
-                <button
-                  type="button"
-                  style={{
-                    background: false ? 'var(--btn-primary-bg)' : 'var(--bg-surface-elevated)',
-                    color: false ? 'var(--btn-primary-text)' : 'var(--text-primary)',
-                    border: false ? '1px solid var(--btn-primary-bg)' : '1px solid var(--border-subtle)',
-                    borderRadius: 'var(--radius-md)',
-                    padding: '1.25rem 1rem',
-                    fontWeight: 700,
-                    fontSize: '1rem',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                    textAlign: 'center'
-                  }}
-                  onClick={() => onLanguageChange('mr')}
-                >
-                  
-                  <div style={{ fontSize: '0.74rem', fontWeight: 400, marginTop: '0.25rem', opacity: 0.8 }}>
-                    
-                  </div>
-                </button>
+              {passwordMsg && (
+                <div style={{
+                  padding: '0.75rem 1rem',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '0.84rem',
+                  fontWeight: 600,
+                  marginBottom: '1rem',
+                  background: passwordMsg.type === 'success' ? 'var(--color-credit-bg)' : 'var(--color-debit-bg)',
+                  border: `1px solid ${passwordMsg.type === 'success' ? 'var(--color-credit-border)' : 'var(--color-debit-border)'}`,
+                  color: passwordMsg.type === 'success' ? 'var(--color-credit)' : 'var(--color-debit)'
+                }}>
+                  {passwordMsg.text}
+                </div>
+              )}
+
+              <form onSubmit={handlePasswordChange} style={{ maxWidth: '420px', display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+                <div className="form-group">
+                  <label className="form-label">New Password *</label>
+                  <input
+                    type="password"
+                    className="form-input"
+                    placeholder="At least 6 characters"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    required
+                    minLength={6}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Confirm New Password *</label>
+                  <input
+                    type="password"
+                    className="form-input"
+                    placeholder="Repeat new password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                    minLength={6}
+                  />
+                </div>
 
                 <button
-                  type="button"
-                  style={{
-                    background: false ? 'var(--btn-primary-bg)' : 'var(--bg-surface-elevated)',
-                    color: false ? 'var(--btn-primary-text)' : 'var(--text-primary)',
-                    border: false ? '1px solid var(--btn-primary-bg)' : '1px solid var(--border-subtle)',
-                    borderRadius: 'var(--radius-md)',
-                    padding: '1.25rem 1rem',
-                    fontWeight: 700,
-                    fontSize: '1rem',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                    textAlign: 'center'
-                  }}
-                  onClick={() => onLanguageChange('hi')}
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={isSavingPassword || !newPassword}
+                  style={{ alignSelf: 'flex-start', minHeight: '40px', fontWeight: 700 }}
                 >
-                  
-                  <div style={{ fontSize: '0.74rem', fontWeight: 400, marginTop: '0.25rem', opacity: 0.8 }}>
-                    
-                  </div>
+                  {isSavingPassword ? (
+                    <>
+                      <Loader2 size={15} style={{ animation: 'spin 0.8s linear infinite' }} />
+                      <span>Updating Password...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Lock size={15} />
+                      <span>Save New Password</span>
+                    </>
+                  )}
                 </button>
-
-                <button
-                  type="button"
-                  style={{
-                    background: language === 'en' ? 'var(--btn-primary-bg)' : 'var(--bg-surface-elevated)',
-                    color: language === 'en' ? 'var(--btn-primary-text)' : 'var(--text-primary)',
-                    border: language === 'en' ? '1px solid var(--btn-primary-bg)' : '1px solid var(--border-subtle)',
-                    borderRadius: 'var(--radius-md)',
-                    padding: '1.25rem 1rem',
-                    fontWeight: 700,
-                    fontSize: '1rem',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                    textAlign: 'center'
-                  }}
-                  onClick={() => onLanguageChange('en')}
-                >
-                  English
-                  <div style={{ fontSize: '0.74rem', fontWeight: 400, marginTop: '0.25rem', opacity: 0.8 }}>
-                    Global
-                  </div>
-                </button>
-              </div>
+              </form>
             </div>
           )}
 
-          {/* 5. Data Management */}
+          {/* 3. Data & Backup */}
           {activeTab === 'DATA' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
               <div style={{ borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.75rem' }}>
-                <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                  {t.resetData}
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.25rem 0' }}>
+                  Data Management & Backups
                 </h3>
-                <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                  {language === 'mr' ? '     ' : false ? '     ' : 'Reset sample data and manage local backups'}
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0 }}>
+                  Export offline copies of your customers, bills, and payment records
                 </p>
               </div>
 
+              {/* Export Backup Card */}
               <div style={{
                 background: 'var(--bg-surface-elevated)',
-                border: '1px solid var(--border-subtle)',
+                border: '1px solid var(--border-medium)',
                 borderRadius: 'var(--radius-sm)',
                 padding: '1.25rem',
                 display: 'flex',
@@ -791,52 +388,27 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 gap: '1rem'
               }}>
                 <div>
-                  <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.9rem' }}>
-                    {t.resetData}
+                  <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.92rem' }}>
+                    Export Offline Backup (JSON)
                   </div>
-                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-                    {t.resetConfirm}
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                    Download complete snapshot of all customers ({customers.length}), invoices ({invoices.length}), and payments ({payments.length}).
                   </div>
                 </div>
                 <button
                   type="button"
                   className="btn btn-outline"
-                  style={{
-                    borderColor: 'var(--color-debit-border)',
-                    color: 'var(--color-debit)',
-                    whiteSpace: 'nowrap'
-                  }}
-                  onClick={() => {
-                    if (window.confirm(t.resetConfirm)) {
-                      onResetData();
-                    }
-                  }}
+                  style={{ whiteSpace: 'nowrap', fontWeight: 700 }}
+                  onClick={handleExportData}
                 >
-                  <RotateCcw size={14} />
-                  <span>{t.resetData}</span>
+                  <Download size={15} />
+                  <span>Download Backup</span>
                 </button>
               </div>
             </div>
           )}
         </div>
       </div>
-
-      {/* OTP Verification Modal */}
-      {otpModal && (
-        <OtpVerificationModal
-          type={otpModal.type}
-          target={otpModal.target}
-          onClose={() => setOtpModal(null)}
-          onVerified={() => {
-            if (otpModal.type === 'PHONE') {
-              setIsPhoneVerified(true);
-            } else if (otpModal.type === 'EMAIL') {
-              setIsEmailVerified(true);
-            }
-            setOtpModal(null);
-          }}
-        />
-      )}
     </div>
   );
 };
