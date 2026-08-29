@@ -532,6 +532,47 @@ export async function sbDeletePayment(paymentId: string, customerId: string, sho
   }
 }
 
+export async function sbWipeAllShopData(shopId: string): Promise<boolean> {
+  try {
+    // 1. Get all customer and invoice IDs for this shop
+    const { data: shopInvoices } = await supabase.from('invoices').select('id').eq('shop_id', shopId);
+    const invoiceIds = (shopInvoices || []).map((i) => i.id);
+
+    const { data: shopPayments } = await supabase.from('payments').select('id').eq('shop_id', shopId);
+    const paymentIds = (shopPayments || []).map((p) => p.id);
+
+    // 2. Delete payment allocations
+    if (invoiceIds.length > 0) {
+      await supabase.from('payment_allocations').delete().in('invoice_id', invoiceIds);
+    }
+    if (paymentIds.length > 0) {
+      await supabase.from('payment_allocations').delete().in('payment_id', paymentIds);
+    }
+
+    // 3. Delete invoice items
+    if (invoiceIds.length > 0) {
+      await supabase.from('invoice_items').delete().in('invoice_id', invoiceIds);
+    }
+
+    // 4. Delete invoices
+    await supabase.from('invoices').delete().eq('shop_id', shopId);
+
+    // 5. Delete payments
+    await supabase.from('payments').delete().eq('shop_id', shopId);
+
+    // 6. Delete customer messages
+    await supabase.from('customer_messages').delete().eq('shop_id', shopId);
+
+    // 7. Delete customers
+    await supabase.from('customers').delete().eq('shop_id', shopId);
+
+    return true;
+  } catch (err) {
+    console.error('sbWipeAllShopData error:', err);
+    return false;
+  }
+}
+
 export async function sbGetDashboardMetrics(shopId: string): Promise<DashboardMetrics> {
   const todayStr = new Date().toISOString().split('T')[0];
 

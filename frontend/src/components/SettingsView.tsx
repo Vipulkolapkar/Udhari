@@ -3,6 +3,8 @@
 import React, { useState } from 'react';
 import {
   ArrowLeft,
+  AlertTriangle,
+  Trash2,
   Moon,
   Sun,
   Shield,
@@ -17,7 +19,8 @@ import {
 } from 'lucide-react';
 import { ShopUser, Language, ThemeMode, Customer, Invoice, Payment } from '../types';
 import { getTranslation } from '../lib/translations';
-import { sbGetCustomers, sbGetInvoices, sbGetPayments } from '../lib/supabaseStore';
+import { sbGetCustomers, sbGetInvoices, sbGetPayments,
+  sbWipeAllShopData } from '../lib/supabaseStore';
 
 interface SettingsViewProps {
   currentShop: ShopUser | null;
@@ -58,6 +61,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [isSavingPassword, setIsSavingPassword] = useState(false);
   const [isExportingJson, setIsExportingJson] = useState(false);
   const [isExportingCsv, setIsExportingCsv] = useState(false);
+  const [isWipeModalOpen, setIsWipeModalOpen] = useState(false);
+  const [wipePassword, setWipePassword] = useState('');
+  const [wipeError, setWipeError] = useState<string | null>(null);
+  const [isWiping, setIsWiping] = useState(false);
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,6 +103,36 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       setPasswordMsg({ type: 'error', text: err.message || 'Failed to update password.' });
     } finally {
       setIsSavingPassword(false);
+    }
+  };
+
+  const handleWipeData = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentShop) return;
+
+    // Check password if set
+    if (currentShop.password && wipePassword !== currentShop.password) {
+      setWipeError('Incorrect password. Please enter your valid account password.');
+      return;
+    }
+
+    setIsWiping(true);
+    setWipeError(null);
+
+    try {
+      const ok = await sbWipeAllShopData(currentShop.id);
+      if (ok) {
+        setIsWipeModalOpen(false);
+        setWipePassword('');
+        onResetData();
+        alert('All customers, bills, and payment records have been completely wiped.');
+      } else {
+        setWipeError('Failed to wipe data. Please try again.');
+      }
+    } catch (err: any) {
+      setWipeError(err.message || 'Error wiping data.');
+    } finally {
+      setIsWiping(false);
     }
   };
 
@@ -564,10 +601,156 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   )}
                 </button>
               </div>
+              {/* 3. Danger Zone: Wipe All Shop Data */}
+              <div style={{
+                background: 'var(--color-debit-bg)',
+                border: '1px solid var(--color-debit-border)',
+                borderRadius: 'var(--radius-sm)',
+                padding: '1.25rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '1rem',
+                marginTop: '0.5rem'
+              }}>
+                <div>
+                  <div style={{ fontWeight: 800, color: 'var(--color-debit)', fontSize: '0.94rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                    <AlertTriangle size={17} color="var(--color-debit)" />
+                    <span>Danger Zone: Erase All Customers & Ledger History</span>
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.35rem', lineHeight: 1.4 }}>
+                    Permanently delete all customer profiles, credit invoices, and payment records for this shop. Requires your account password.
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="btn"
+                  style={{
+                    whiteSpace: 'nowrap',
+                    fontWeight: 700,
+                    minWidth: '160px',
+                    background: 'var(--color-debit)',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: 'var(--radius-sm)',
+                    cursor: 'pointer',
+                    padding: '0.65rem 1rem'
+                  }}
+                  onClick={() => {
+                    setWipePassword('');
+                    setWipeError(null);
+                    setIsWipeModalOpen(true);
+                  }}
+                >
+                  <Trash2 size={15} />
+                  <span>Wipe All Data</span>
+                </button>
+              </div>
             </div>
           )}
         </div>
       </div>
+      {/* Password-Protected Wipe All Data Modal */}
+      {isWipeModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsWipeModalOpen(false)}>
+          <div
+            className="modal-content"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '440px', width: '100%', padding: '1.75rem' }}
+          >
+            <div style={{
+              width: '56px',
+              height: '56px',
+              borderRadius: '50%',
+              background: 'var(--color-debit-bg)',
+              border: '1.5px solid var(--color-debit-border)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 1.25rem auto'
+            }}>
+              <AlertTriangle size={28} color="var(--color-debit)" />
+            </div>
+
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', textAlign: 'center', margin: '0 0 0.5rem 0' }}>
+              Confirm Complete Data Wipe?
+            </h3>
+            <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', textAlign: 'center', lineHeight: 1.4, margin: '0 0 1.25rem 0' }}>
+              You are about to permanently erase all customers, bills, and transaction ledger history for <strong>{currentShop?.shop_name}</strong>.
+            </p>
+
+            {wipeError && (
+              <div style={{
+                padding: '0.65rem 0.85rem',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                marginBottom: '1rem',
+                background: 'var(--color-debit-bg)',
+                border: '1px solid var(--color-debit-border)',
+                color: 'var(--color-debit)'
+              }}>
+                {wipeError}
+              </div>
+            )}
+
+            <form onSubmit={handleWipeData}>
+              <div className="form-group" style={{ marginBottom: '1.25rem' }}>
+                <label className="form-label">Enter Account Password to Confirm *</label>
+                <input
+                  type="password"
+                  className="form-input"
+                  placeholder="Enter your current password"
+                  value={wipePassword}
+                  onChange={(e) => setWipePassword(e.target.value)}
+                  required
+                  autoFocus
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  style={{ flex: 1, padding: '0.65rem 1rem', fontWeight: 600 }}
+                  onClick={() => setIsWipeModalOpen(false)}
+                  disabled={isWiping}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn"
+                  disabled={isWiping || !wipePassword}
+                  style={{
+                    flex: 1,
+                    padding: '0.65rem 1rem',
+                    fontWeight: 700,
+                    background: 'var(--color-debit)',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: 'var(--radius-sm)',
+                    cursor: isWiping ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.45rem'
+                  }}
+                >
+                  {isWiping ? (
+                    <>
+                      <Loader2 size={15} style={{ animation: 'spin 0.8s linear infinite' }} />
+                      <span>Wiping...</span>
+                    </>
+                  ) : (
+                    <span>Confirm Wipe</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
