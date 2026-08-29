@@ -306,8 +306,15 @@ export async function sbGetInvoices(shopId: string): Promise<Invoice[]> {
 export async function sbAddInvoice(
   shopId: string,
   customerId: string,
-  invoiceData: Omit<Invoice, 'id' | 'customer_id' | 'invoice_number' | 'created_at' | 'paid_amount' | 'status' | 'shop_id'>
+  invoiceData: Omit<Invoice, 'id' | 'customer_id' | 'invoice_number' | 'created_at' | 'paid_amount' | 'status' | 'shop_id'> & {
+    advance_paid?: number;
+    advance_payment_mode?: Payment['payment_mode'];
+  }
 ): Promise<Invoice> {
+  const advanceAmount = Math.min(invoiceData.total_amount, Math.max(0, invoiceData.advance_paid || 0));
+  const isFullyPaid = advanceAmount >= invoiceData.total_amount;
+  const isPartiallyPaid = advanceAmount > 0;
+
   // Get count for invoice number
   const { count } = await supabase.from('invoices').select('*', { count: 'exact', head: true }).eq('shop_id', shopId);
   const invoiceNumber = `INV-${new Date().getFullYear()}-${String((count || 0) + 1).padStart(3, '0')}`;
@@ -319,8 +326,8 @@ export async function sbAddInvoice(
     shop_id: shopId,
     customer_id: customerId,
     invoice_number: invoiceNumber,
-    paid_amount: 0,
-    status: 'UNPAID',
+    paid_amount: advanceAmount,
+    status: isFullyPaid ? 'PAID' : isPartiallyPaid ? 'PARTIAL' : 'UNPAID',
     created_at: new Date().toISOString()
   };
 
@@ -354,15 +361,44 @@ export async function sbAddInvoice(
     if (itemError) console.error('Add invoice items failed:', itemError);
   }
 
-  // Update customer balance directly with await
+  // If immediate partial/full payment was made on spot, record payment and allocation
+  if (advanceAmount > 0) {
+    const { count: payCount } = await supabase.from('payments').select('*', { count: 'exact', head: true }).eq('shop_id', shopId);
+    const receiptNumber = `REC-${new Date().getFullYear()}-${String((payCount || 0) + 1).padStart(3, '0')}`;
+    const paymentId = `pay_${Date.now()}`;
+
+    await supabase.from('payments').insert([{
+      id: paymentId,
+      shop_id: shopId,
+      customer_id: customerId,
+      receipt_number: receiptNumber,
+      amount: advanceAmount,
+      payment_mode: invoiceData.advance_payment_mode || 'CASH',
+      discount_waived: 0,
+      reference_note: `Down payment for ${invoiceNumber}`,
+      created_at: new Date().toISOString()
+    }]);
+
+    await supabase.from('payment_allocations').insert([{
+      id: `alloc_${Date.now()}`,
+      payment_id: paymentId,
+      invoice_id: invoiceId,
+      invoice_number: invoiceNumber,
+      allocated_amount: advanceAmount,
+      created_at: new Date().toISOString()
+    }]);
+  }
+
+  // Update customer balance directly with await (only adds the unpaid remaining debt)
   try {
+    const remainingDue = invoice.total_amount - advanceAmount;
     const { data: cust } = await supabase
       .from('customers')
       .select('current_balance')
       .eq('id', customerId)
       .single();
 
-    const newBal = (cust?.current_balance || 0) + invoice.total_amount;
+    const newBal = (cust?.current_balance || 0) + remainingDue;
     await supabase
       .from('customers')
       .update({

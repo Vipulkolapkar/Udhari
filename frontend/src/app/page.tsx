@@ -3,7 +3,7 @@ import { LogOut, Trash2, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Customer, Invoice, Payment, Language, DashboardMetrics, InvoiceItem, ShopUser, ShopCategory, ThemeMode } from '../types';
+import { Customer, Invoice, Payment, PaymentMode, Language, DashboardMetrics, InvoiceItem, ShopUser, ShopCategory, ThemeMode } from '../types';
 import { getTranslation } from '../lib/translations';
 
 // Supabase Store (async, real database)
@@ -405,6 +405,8 @@ export default function Home() {
       taken_by_name?: string;
       notes?: string;
       due_date?: string;
+      advance_paid?: number;
+      advance_payment_mode?: PaymentMode;
     }
   ) => {
     if (!currentShop) return;
@@ -412,7 +414,12 @@ export default function Home() {
       await sbAddInvoice(currentShop.id, customerId, billData);
       await refreshData(currentShop.id);
       setBillModalCustomer(null);
-      showToast(t.billCreatedSuccess);
+      const remaining = billData.total_amount - (billData.advance_paid || 0);
+      if (billData.advance_paid && billData.advance_paid > 0) {
+        showToast(`Bill created: ₹${billData.advance_paid} paid on spot, ₹${remaining} added to credit.`);
+      } else {
+        showToast(t.billCreatedSuccess);
+      }
     } catch (err) {
       showToast('Failed to create bill. Try again.');
       console.error(err);

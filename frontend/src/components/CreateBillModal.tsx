@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, Plus, Trash2, Loader2, ShoppingBag } from 'lucide-react';
-import { Customer, InvoiceItem, Language, ShopUser } from '../types';
+import { X, Plus, Trash2, Loader2, ShoppingBag, ArrowDownLeft } from 'lucide-react';
+import { Customer, InvoiceItem, Language, ShopUser, PaymentMode } from '../types';
 import { getTranslation } from '../lib/translations';
 
 interface CreateBillModalProps {
@@ -19,6 +19,8 @@ interface CreateBillModalProps {
       taken_by_name?: string;
       notes?: string;
       due_date?: string;
+      advance_paid?: number;
+      advance_payment_mode?: PaymentMode;
     }
   ) => Promise<void> | void;
 }
@@ -39,6 +41,8 @@ export const CreateBillModal: React.FC<CreateBillModalProps> = ({
   const [notes, setNotes] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [discountAmount, setDiscountAmount] = useState<number>(0);
+  const [advancePaid, setAdvancePaid] = useState<number | ''>('');
+  const [advancePaymentMode, setAdvancePaymentMode] = useState<PaymentMode>('CASH');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const addItemRow = (name = '', price = 0, quantity = 1) => {
@@ -66,6 +70,8 @@ export const CreateBillModal: React.FC<CreateBillModalProps> = ({
 
   const subtotal = items.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.price) || 0), 0);
   const netTotal = Math.max(0, subtotal - (Number(discountAmount) || 0));
+  const numAdvance = typeof advancePaid === 'number' ? advancePaid : 0;
+  const remainingDueAdded = Math.max(0, netTotal - numAdvance);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,7 +94,9 @@ export const CreateBillModal: React.FC<CreateBillModalProps> = ({
         discount_amount: Number(discountAmount) || 0,
         taken_by_name: takenBy.trim() || undefined,
         notes: notes.trim() || undefined,
-        due_date: dueDate || undefined
+        due_date: dueDate || undefined,
+        advance_paid: numAdvance > 0 ? numAdvance : undefined,
+        advance_payment_mode: numAdvance > 0 ? advancePaymentMode : undefined
       });
     } finally {
       setIsSubmitting(false);
@@ -97,7 +105,7 @@ export const CreateBillModal: React.FC<CreateBillModalProps> = ({
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content large" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '580px', width: '100%' }}>
+      <div className="modal-content large" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px', width: '100%' }}>
         <div className="modal-header">
           <div className="modal-title">
             <ShoppingBag size={18} color="var(--text-primary)" />
@@ -200,6 +208,54 @@ export const CreateBillModal: React.FC<CreateBillModalProps> = ({
               </div>
             </div>
 
+            {/* Immediate Partial Payment On Spot */}
+            <div style={{
+              background: 'var(--bg-surface-elevated)',
+              border: '1px solid var(--border-medium)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '0.9rem 1rem',
+              marginTop: '0.5rem'
+            }}>
+              <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <ArrowDownLeft size={15} color="var(--color-credit)" />
+                <span>Immediate Payment on Spot (Optional)</span>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: numAdvance > 0 ? '1fr 1fr' : '1fr', gap: '0.75rem' }}>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label" style={{ fontSize: '0.78rem' }}>Amount Paid on Spot (₹)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max={netTotal}
+                    className="form-input"
+                    placeholder="e.g. 500 (if paid partially now)"
+                    value={advancePaid}
+                    onChange={(e) => setAdvancePaid(e.target.value === '' ? '' : Math.min(netTotal, Number(e.target.value)))}
+                    disabled={isSubmitting}
+                  />
+                </div>
+
+                {numAdvance > 0 && (
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label" style={{ fontSize: '0.78rem' }}>Payment Mode</label>
+                    <select
+                      className="form-select"
+                      value={advancePaymentMode}
+                      onChange={(e) => setAdvancePaymentMode(e.target.value as PaymentMode)}
+                      disabled={isSubmitting}
+                    >
+                      <option value="CASH">Cash</option>
+                      <option value="UPI_GPAY">Google Pay (GPay)</option>
+                      <option value="UPI_PHONEPE">PhonePe</option>
+                      <option value="UPI_PAYTM">Paytm</option>
+                      <option value="BANK_TRANSFER">Bank Transfer</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Extra Metadata: Taken By & Due Date */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.85rem', marginTop: '0.5rem' }}>
               <div className="form-group">
@@ -226,32 +282,29 @@ export const CreateBillModal: React.FC<CreateBillModalProps> = ({
               </div>
             </div>
 
-            {/* Discount / Roundoff & Net Total */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem', alignItems: 'center', marginTop: '0.25rem' }}>
-              <div className="form-group">
-                <label className="form-label">Discount / Waiver (₹)</label>
-                <input
-                  type="number"
-                  min="0"
-                  className="form-input"
-                  placeholder="0"
-                  value={discountAmount || ''}
-                  onChange={(e) => setDiscountAmount(Number(e.target.value))}
-                  disabled={isSubmitting}
-                />
+            {/* Bill Summary & Net Credit Added */}
+            <div style={{
+              marginTop: '0.65rem',
+              background: 'var(--bg-surface-elevated)',
+              border: '1px solid var(--border-medium)',
+              padding: '0.85rem 1.15rem',
+              borderRadius: 'var(--radius-sm)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                  Total Bill: <strong>₹{netTotal.toLocaleString('en-IN')}</strong>
+                  {numAdvance > 0 && <span> • Paid: <strong style={{ color: 'var(--color-credit)' }}>- ₹{numAdvance.toLocaleString('en-IN')}</strong></span>}
+                </div>
+                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '2px' }}>
+                  Remaining Credit to Add (Udhari):
+                </div>
               </div>
 
-              <div style={{
-                textAlign: 'right',
-                background: 'var(--bg-surface-elevated)',
-                border: '1px solid var(--border-medium)',
-                padding: '0.75rem 1rem',
-                borderRadius: 'var(--radius-sm)'
-              }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Total Bill Amount</span>
-                <div style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-primary)' }}>
-                  ₹{netTotal.toLocaleString('en-IN')}
-                </div>
+              <div style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--color-debit)', fontFamily: 'var(--font-primary)' }}>
+                ₹{remainingDueAdded.toLocaleString('en-IN')}
               </div>
             </div>
           </div>
@@ -274,7 +327,9 @@ export const CreateBillModal: React.FC<CreateBillModalProps> = ({
               ) : (
                 <>
                   <Plus size={15} />
-                  <span>Give Credit (₹{netTotal.toLocaleString('en-IN')})</span>
+                  <span>
+                    Save Bill {numAdvance > 0 ? `(₹${numAdvance} Paid, ₹${remainingDueAdded} Due)` : `(₹${netTotal.toLocaleString('en-IN')})`}
+                  </span>
                 </>
               )}
             </button>
