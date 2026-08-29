@@ -166,13 +166,35 @@ export async function sbUpdateShop(shopId: string, updates: Partial<ShopUser>): 
 // CUSTOMERS
 // ─────────────────────────────────────────────────
 export async function sbGetCustomers(shopId: string): Promise<Customer[]> {
-  const { data, error } = await supabase
+  const { data: customers, error } = await supabase
     .from('customers')
     .select('*')
     .eq('shop_id', shopId)
     .order('created_at', { ascending: false });
+
   if (error) { console.error('sbGetCustomers:', error); return []; }
-  return (data || []) as Customer[];
+  if (!customers || customers.length === 0) return [];
+
+  // Query all invoices to guarantee accurate balance calculation
+  const { data: invoices } = await supabase
+    .from('invoices')
+    .select('customer_id, total_amount, paid_amount, status')
+    .eq('shop_id', shopId)
+    .neq('status', 'CANCELLED');
+
+  const balanceMap = new Map<string, number>();
+  (invoices || []).forEach((inv) => {
+    const remaining = Math.max(0, (inv.total_amount || 0) - (inv.paid_amount || 0));
+    balanceMap.set(inv.customer_id, (balanceMap.get(inv.customer_id) || 0) + remaining);
+  });
+
+  return customers.map((c) => {
+    const liveBal = balanceMap.has(c.id) ? balanceMap.get(c.id)! : (c.current_balance || 0);
+    return {
+      ...c,
+      current_balance: liveBal
+    };
+  }) as Customer[];
 }
 
 export async function sbAddCustomer(
@@ -332,28 +354,25 @@ export async function sbAddInvoice(
     if (itemError) console.error('Add invoice items failed:', itemError);
   }
 
-  // Update customer balance
-  await supabase.rpc('increment_customer_balance', {
-    p_customer_id: customerId,
-    p_amount: invoice.total_amount
-  }).then(({ error }) => {
-    if (error) {
-      // Fallback if RPC doesn't exist
-      supabase
-        .from('customers')
-        .select('current_balance')
-        .eq('id', customerId)
-        .single()
-        .then(({ data }) => {
-          if (data) {
-            supabase.from('customers').update({
-              current_balance: (data.current_balance || 0) + invoice.total_amount,
-              updated_at: new Date().toISOString()
-            }).eq('id', customerId);
-          }
-        });
-    }
-  });
+  // Update customer balance directly with await
+  try {
+    const { data: cust } = await supabase
+      .from('customers')
+      .select('current_balance')
+      .eq('id', customerId)
+      .single();
+
+    const newBal = (cust?.current_balance || 0) + invoice.total_amount;
+    await supabase
+      .from('customers')
+      .update({
+        current_balance: newBal,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', customerId);
+  } catch (err) {
+    console.error('Failed to update customer balance in DB:', err);
+  }
 
   return invoice;
 }
