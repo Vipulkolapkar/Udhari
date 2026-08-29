@@ -162,6 +162,22 @@ export default function Home() {
             await refreshData(matchedShop.id);
             showToast(`Signed in to ${matchedShop.shop_name}`);
             return;
+          } else if (userEmail) {
+            // First time Google OAuth user: auto-create shop with their Google Name & Email
+            const fullName = session.user.user_metadata?.full_name || session.user.user_metadata?.name || 'Shop Owner';
+            const autoShopName = `${fullName}'s Store`;
+            const newShop = await sbRegisterShop({
+              shop_name: autoShopName,
+              owner_name: fullName,
+              phone: '9800000000',
+              email: userEmail,
+              shop_category: 'GENERAL',
+              terms_accepted: true
+            });
+            sbSetCurrentUser(newShop);
+            await refreshData(newShop.id);
+            showToast(`Welcome! Business "${newShop.shop_name}" created successfully!`);
+            return;
           }
         } catch (e) {
           console.error('Shop match error:', e);
