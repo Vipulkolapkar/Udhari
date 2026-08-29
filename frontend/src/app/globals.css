@@ -1129,3 +1129,13 @@ body {
 }
 
 
+
+/* Disable scroll wheel / trackpad 2-finger number increment on all number inputs */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type=number] {
+  -moz-appearance: textfield;
+}
