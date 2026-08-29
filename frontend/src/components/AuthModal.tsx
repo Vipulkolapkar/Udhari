@@ -264,53 +264,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </button>
         </div>
 
-        {/* View Switcher */}
-        <div style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-surface-elevated)' }}>
-          <button
-            type="button"
-            style={{
-              flex: 1,
-              background: tab === 'LOGIN' ? 'var(--bg-surface)' : 'transparent',
-              border: 'none',
-              borderBottom: tab === 'LOGIN' ? '2.5px solid var(--btn-primary-bg)' : '2.5px solid transparent',
-              color: tab === 'LOGIN' ? 'var(--text-primary)' : 'var(--text-muted)',
-              padding: '0.8rem',
-              fontSize: '0.88rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.4rem'
-            }}
-            onClick={() => { setTab('LOGIN'); setErrorMessage(null); }}
-          >
-            <LogIn size={15} />
-            <span>Sign In</span>
-          </button>
-          <button
-            type="button"
-            style={{
-              flex: 1,
-              background: tab === 'REGISTER' ? 'var(--bg-surface)' : 'transparent',
-              border: 'none',
-              borderBottom: tab === 'REGISTER' ? '2.5px solid var(--btn-primary-bg)' : '2.5px solid transparent',
-              color: tab === 'REGISTER' ? 'var(--text-primary)' : 'var(--text-muted)',
-              padding: '0.8rem',
-              fontSize: '0.88rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.4rem'
-            }}
-            onClick={() => { setTab('REGISTER'); setErrorMessage(null); }}
-          >
-            <UserPlus size={15} />
-            <span>Register</span>
-          </button>
-        </div>
+
 
         <div style={{ padding: '1.5rem' }}>
           {errorMessage && (

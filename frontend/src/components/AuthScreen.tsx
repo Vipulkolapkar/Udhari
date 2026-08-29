@@ -294,76 +294,22 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
       }}>
         {/* Brand Header */}
         <div style={{
-          padding: '2rem 1.75rem 1.25rem 1.75rem',
+          padding: '2.25rem 2rem 1.5rem 2rem',
           textAlign: 'center',
           borderBottom: '1px solid var(--border-subtle)',
           background: 'var(--bg-surface-elevated)'
         }}>
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.75rem' }}>
-            <UdhariLogo size={48} />
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.85rem' }}>
+            <UdhariLogo size={52} />
           </div>
-          <h1 style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.03em' }}>
-            Udhari
+          <h1 style={{ fontSize: '1.65rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.03em' }}>
+            {tab === 'LOGIN' ? 'Sign In to Udhari' : 'Register Your Business'}
           </h1>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
-            {tab === 'LOGIN' ? 'Sign in to manage your credit ledger' : 'Create your business account'}
+          <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
+            {tab === 'LOGIN' 
+              ? 'Enter your credentials to access your business ledger' 
+              : 'Create an account to start tracking customer credit & payments'}
           </p>
-        </div>
-
-        {/* View Switcher Tabs */}
-        <div style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-surface-elevated)' }}>
-          <button
-            type="button"
-            style={{
-              flex: 1,
-              background: tab === 'LOGIN' ? 'var(--bg-surface)' : 'transparent',
-              border: 'none',
-              borderBottom: tab === 'LOGIN' ? '2.5px solid var(--btn-primary-bg)' : '2.5px solid transparent',
-              color: tab === 'LOGIN' ? 'var(--text-primary)' : 'var(--text-muted)',
-              padding: '0.9rem',
-              fontSize: '0.9rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.45rem',
-              transition: 'all 0.15s ease'
-            }}
-            onClick={() => {
-              setTab('LOGIN');
-              setErrorMessage(null);
-            }}
-          >
-            <LogIn size={16} />
-            <span>Sign In</span>
-          </button>
-          <button
-            type="button"
-            style={{
-              flex: 1,
-              background: tab === 'REGISTER' ? 'var(--bg-surface)' : 'transparent',
-              border: 'none',
-              borderBottom: tab === 'REGISTER' ? '2.5px solid var(--btn-primary-bg)' : '2.5px solid transparent',
-              color: tab === 'REGISTER' ? 'var(--text-primary)' : 'var(--text-muted)',
-              padding: '0.9rem',
-              fontSize: '0.9rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.45rem',
-              transition: 'all 0.15s ease'
-            }}
-            onClick={() => {
-              setTab('REGISTER');
-              setErrorMessage(null);
-            }}
-          >
-            <UserPlus size={16} />
-            <span>Register Business</span>
-          </button>
         </div>
 
         {/* Form Body */}
