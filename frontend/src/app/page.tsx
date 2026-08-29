@@ -1,4 +1,5 @@
 'use client';
+import { LogOut } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -357,7 +358,17 @@ export default function Home() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    setIsSignOutConfirmOpen(false);
+    try {
+      await supabase.auth.signOut().catch(() => {});
+    } catch (e) {
+      console.error(e);
+    }
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('khata_current_shop_id_v1');
+      sessionStorage.clear();
+    }
     sbSetCurrentUser(null);
     setCurrentShop(null);
     setCurrentView('DASHBOARD');
@@ -807,6 +818,66 @@ export default function Home() {
           onClose={() => setIsAddCustomerOpen(false)}
           onSubmit={handleAddCustomer}
         />
+      )}
+
+      {/* Sign Out Confirmation Modal */}
+      {isSignOutConfirmOpen && (
+        <div className="modal-overlay" onClick={() => setIsSignOutConfirmOpen(false)}>
+          <div
+            className="modal-content"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '420px', width: '100%', padding: '1.75rem', textAlign: 'center' }}
+          >
+            <div style={{
+              width: '56px',
+              height: '56px',
+              borderRadius: '50%',
+              background: 'var(--color-debit-bg)',
+              border: '1.5px solid var(--color-debit-border)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 1.25rem auto'
+            }}>
+              <LogOut size={26} color="var(--color-debit)" />
+            </div>
+
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.5rem 0' }}>
+              Sign Out Confirmation
+            </h3>
+            <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.4, margin: '0 0 1.5rem 0' }}>
+              Are you sure you want to sign out of <strong>{currentShop?.shop_name || 'your business account'}</strong>?
+            </p>
+
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
+              <button
+                type="button"
+                className="btn btn-outline"
+                style={{ flex: 1, padding: '0.65rem 1rem', fontWeight: 600 }}
+                onClick={() => setIsSignOutConfirmOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn"
+                style={{
+                  flex: 1,
+                  padding: '0.65rem 1rem',
+                  fontWeight: 700,
+                  background: 'var(--color-debit)',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: 'var(--radius-sm)',
+                  cursor: 'pointer'
+                }}
+                onClick={handleLogout}
+              >
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Toast */}
