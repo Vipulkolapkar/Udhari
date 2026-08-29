@@ -490,6 +490,48 @@ export async function sbRecordPayment(
 // ─────────────────────────────────────────────────
 // DASHBOARD METRICS
 // ─────────────────────────────────────────────────
+export async function sbDeletePayment(paymentId: string, customerId: string, shopId: string): Promise<boolean> {
+  try {
+    // 1. Delete allocations for this payment
+    await supabase.from('payment_allocations').delete().eq('payment_id', paymentId);
+
+    // 2. Delete payment
+    await supabase.from('payments').delete().eq('id', paymentId);
+
+    // 3. Recalculate customer balance and invoice paid amounts
+    const { data: customerInvoices } = await supabase
+      .from('invoices')
+      .select('id, total_amount, paid_amount')
+      .eq('customer_id', customerId)
+      .order('created_at', { ascending: true });
+
+    const { data: remainingPayments } = await supabase
+      .from('payments')
+      .select('id, amount, discount_waived')
+      .eq('customer_id', customerId)
+      .order('created_at', { ascending: true });
+
+    let availableCredit = (remainingPayments || []).reduce((sum, p) => sum + (p.amount || 0) + (p.discount_waived || 0), 0);
+
+    for (const inv of (customerInvoices || [])) {
+      if (availableCredit >= inv.total_amount) {
+        await supabase.from('invoices').update({ paid_amount: inv.total_amount, status: 'PAID' }).eq('id', inv.id);
+        availableCredit -= inv.total_amount;
+      } else if (availableCredit > 0) {
+        await supabase.from('invoices').update({ paid_amount: availableCredit, status: 'PARTIAL' }).eq('id', inv.id);
+        availableCredit = 0;
+      } else {
+        await supabase.from('invoices').update({ paid_amount: 0, status: 'UNPAID' }).eq('id', inv.id);
+      }
+    }
+
+    return true;
+  } catch (err) {
+    console.error('sbDeletePayment error:', err);
+    return false;
+  }
+}
+
 export async function sbGetDashboardMetrics(shopId: string): Promise<DashboardMetrics> {
   const todayStr = new Date().toISOString().split('T')[0];
 

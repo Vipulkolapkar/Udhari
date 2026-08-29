@@ -22,6 +22,7 @@ import {
   sbAddInvoice,
   sbGetPayments,
   sbRecordPayment,
+  sbDeletePayment,
   sbGetDashboardMetrics,
   sbSaveCustomerMessage,
 } from '../lib/supabaseStore';
@@ -439,6 +440,23 @@ export default function Home() {
     }
   };
 
+  // ─── Delete Payment ───────────────────────────────────────────────
+  const handleDeletePayment = async (paymentId: string) => {
+    if (!currentShop || !ledgerModalCustomer) return;
+    try {
+      const ok = await sbDeletePayment(paymentId, ledgerModalCustomer.id, currentShop.id);
+      if (ok) {
+        await refreshData(currentShop.id);
+        showToast('Payment record deleted and balance restored.');
+      } else {
+        showToast('Failed to delete payment.');
+      }
+    } catch (err) {
+      console.error('Delete payment error:', err);
+      showToast('Error deleting payment.');
+    }
+  };
+
   // ─── Delete Customer & All History ───────────────────────────────
   const handleDeleteCustomer = async (customer: Customer) => {
     if (!currentShop || isDeletingCustomer) return;
@@ -818,6 +836,7 @@ export default function Home() {
           onClose={() => setLedgerModalCustomer(null)}
           onGiveCreditClick={setBillModalCustomer}
           onGotPaymentClick={setPaymentModalCustomer}
+          onDeletePaymentClick={handleDeletePayment}
         />
       )}
 

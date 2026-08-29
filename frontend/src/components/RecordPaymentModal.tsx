@@ -32,25 +32,22 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
 
   const [amount, setAmount] = useState<number | ''>(customer.current_balance > 0 ? customer.current_balance : '');
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('CASH');
-  const [discountWaived, setDiscountWaived] = useState<number | ''>('');
   const [referenceNote, setReferenceNote] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Live FIFO calculation preview
+  // Live FIFO calculation preview (discount removed)
   const fifoPreview = useMemo(() => {
     const numAmount = Number(amount) || 0;
-    const numDiscount = Number(discountWaived) || 0;
-    return simulateFIFOPayment(customerInvoices, numAmount, numDiscount);
-  }, [customerInvoices, amount, discountWaived]);
+    return simulateFIFOPayment(customerInvoices, numAmount, 0);
+  }, [customerInvoices, amount]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const numAmount = Number(amount) || 0;
-    const numDiscount = Number(discountWaived) || 0;
     if (numAmount <= 0 || isSubmitting) return;
 
     setIsSubmitting(true);
-    if (numAmount + numDiscount >= customer.current_balance) {
+    if (numAmount >= customer.current_balance) {
       confetti({
         particleCount: 70,
         spread: 60,
@@ -63,7 +60,7 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
         customer.id,
         numAmount,
         paymentMode,
-        numDiscount,
+        0, // discount removed
         referenceNote.trim() || undefined
       );
     } finally {
@@ -77,7 +74,6 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
 
   const handleFullSettle = () => {
     setAmount(customer.current_balance);
-    setDiscountWaived('');
   };
 
   return (
@@ -140,9 +136,9 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
               </button>
             )}
 
-            {/* Amount input - High Visibility & No Trackpad Scroll Increment */}
+            {/* Amount input */}
             <div className="form-group">
-              <label className="form-label">Payment Amount (₹) *</label>
+              <label className="form-label">Payment Amount Received (₹) *</label>
               <input
                 type="number"
                 min="1"
@@ -197,30 +193,13 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
               </select>
             </div>
 
-            {/* Chillar Round-off Waiver */}
-            <div className="form-group">
-              <label className="form-label">
-                Discount / Waiver (₹)
-              </label>
-              <input
-                type="number"
-                min="0"
-                className="form-input"
-                placeholder="0"
-                value={discountWaived}
-                onChange={(e) => setDiscountWaived(e.target.value === '' ? '' : Number(e.target.value))}
-                onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                disabled={isSubmitting}
-              />
-            </div>
-
             {/* Reference Note */}
             <div className="form-group">
-              <label className="form-label">Payment Reference / Notes (Optional)</label>
+              <label className="form-label">Payment Notes / Reference (Optional)</label>
               <input
                 type="text"
                 className="form-input"
-                placeholder="e.g. UPI Ref # / Given by son"
+                placeholder="e.g. Cash received / UPI transaction ref"
                 value={referenceNote}
                 onChange={(e) => setReferenceNote(e.target.value)}
                 disabled={isSubmitting}
@@ -232,7 +211,7 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
               <div className="fifo-preview-box">
                 <div className="fifo-title">
                   <CheckCircle2 size={13} style={{ display: 'inline', marginRight: '4px' }} />
-                  Bills Cleared by FIFO Order
+                  Bills Settled in Order
                 </div>
                 {fifoPreview.allocations.map((alloc) => (
                   <div key={alloc.invoice_id} className="fifo-item">
@@ -261,12 +240,12 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
               {isSubmitting ? (
                 <>
                   <Loader2 size={15} style={{ animation: 'spin 0.8s linear infinite' }} />
-                  <span>Recording Payment...</span>
+                  <span>Saving Payment...</span>
                 </>
               ) : (
                 <>
                   <ArrowDownLeft size={15} />
-                  <span>Got Payment (₹{(Number(amount) || 0).toLocaleString('en-IN')})</span>
+                  <span>Save Payment (₹{(Number(amount) || 0).toLocaleString('en-IN')})</span>
                 </>
               )}
             </button>
