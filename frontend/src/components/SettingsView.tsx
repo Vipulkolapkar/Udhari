@@ -61,10 +61,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [isSavingPassword, setIsSavingPassword] = useState(false);
   const [isExportingJson, setIsExportingJson] = useState(false);
   const [isExportingCsv, setIsExportingCsv] = useState(false);
-  const [isWipeModalOpen, setIsWipeModalOpen] = useState(false);
-  const [wipePassword, setWipePassword] = useState('');
-  const [wipeError, setWipeError] = useState<string | null>(null);
-  const [isWiping, setIsWiping] = useState(false);
+  const [isDeleteAllModalOpen, setIsDeleteAllModalOpen] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,33 +106,33 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
   };
 
-  const handleWipeData = async (e: React.FormEvent) => {
+  const handleDeleteAllData = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentShop) return;
 
     // Check password if set
-    if (currentShop.password && wipePassword !== currentShop.password) {
-      setWipeError('Incorrect password. Please enter your valid account password.');
+    if (currentShop.password && deletePassword !== currentShop.password) {
+      setDeleteError('Incorrect password. Please enter your valid account password.');
       return;
     }
 
-    setIsWiping(true);
-    setWipeError(null);
+    setIsDeletingAll(true);
+    setDeleteError(null);
 
     try {
       const ok = await sbWipeAllShopData(currentShop.id);
       if (ok) {
-        setIsWipeModalOpen(false);
-        setWipePassword('');
+        setIsDeleteAllModalOpen(false);
+        setDeletePassword('');
         onResetData();
-        alert('All customers, bills, and payment records have been completely wiped.');
+        alert('All customers, bills, and payment records have been deleted successfully.');
       } else {
-        setWipeError('Failed to wipe data. Please try again.');
+        setDeleteError('Failed to wipe data. Please try again.');
       }
     } catch (err: any) {
-      setWipeError(err.message || 'Error wiping data.');
+      setDeleteError(err.message || 'Error wiping data.');
     } finally {
-      setIsWiping(false);
+      setIsDeletingAll(false);
     }
   };
 
@@ -637,9 +637,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     padding: '0.65rem 1rem'
                   }}
                   onClick={() => {
-                    setWipePassword('');
-                    setWipeError(null);
-                    setIsWipeModalOpen(true);
+                    setDeletePassword('');
+                    setDeleteError(null);
+                    setIsDeleteAllModalOpen(true);
                   }}
                 >
                   <Trash2 size={15} />
@@ -651,8 +651,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
       </div>
       {/* Password-Protected Wipe All Data Modal */}
-      {isWipeModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsWipeModalOpen(false)}>
+      {isDeleteAllModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsDeleteAllModalOpen(false)}>
           <div
             className="modal-content"
             onClick={(e) => e.stopPropagation()}
@@ -679,7 +679,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               You are about to permanently erase all customers, bills, and transaction ledger history for <strong>{currentShop?.shop_name}</strong>.
             </p>
 
-            {wipeError && (
+            {deleteError && (
               <div style={{
                 padding: '0.65rem 0.85rem',
                 borderRadius: 'var(--radius-sm)',
@@ -690,19 +690,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 border: '1px solid var(--color-debit-border)',
                 color: 'var(--color-debit)'
               }}>
-                {wipeError}
+                {deleteError}
               </div>
             )}
 
-            <form onSubmit={handleWipeData}>
+            <form onSubmit={handleDeleteAllData}>
               <div className="form-group" style={{ marginBottom: '1.25rem' }}>
                 <label className="form-label">Enter Account Password to Confirm *</label>
                 <input
                   type="password"
                   className="form-input"
                   placeholder="Enter your current password"
-                  value={wipePassword}
-                  onChange={(e) => setWipePassword(e.target.value)}
+                  value={deletePassword}
+                  onChange={(e) => setDeletePassword(e.target.value)}
                   required
                   autoFocus
                 />
@@ -713,15 +713,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   type="button"
                   className="btn btn-outline"
                   style={{ flex: 1, padding: '0.65rem 1rem', fontWeight: 600 }}
-                  onClick={() => setIsWipeModalOpen(false)}
-                  disabled={isWiping}
+                  onClick={() => setIsDeleteAllModalOpen(false)}
+                  disabled={isDeletingAll}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   className="btn"
-                  disabled={isWiping || !wipePassword}
+                  disabled={isDeletingAll || !deletePassword}
                   style={{
                     flex: 1,
                     padding: '0.65rem 1rem',
@@ -730,14 +730,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     color: '#ffffff',
                     border: 'none',
                     borderRadius: 'var(--radius-sm)',
-                    cursor: isWiping ? 'not-allowed' : 'pointer',
+                    cursor: isDeletingAll ? 'not-allowed' : 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '0.45rem'
                   }}
                 >
-                  {isWiping ? (
+                  {isDeletingAll ? (
                     <>
                       <Loader2 size={15} style={{ animation: 'spin 0.8s linear infinite' }} />
                       <span>Wiping...</span>
