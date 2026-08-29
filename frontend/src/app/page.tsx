@@ -11,6 +11,7 @@ import {
   sbSetCurrentUser,
   sbGetShops,
   sbLoginWithPhone,
+  sbLoginWithCredentials,
   sbRegisterShop,
   sbUpdateShop,
   sbGetCustomers,
@@ -234,14 +235,15 @@ export default function Home() {
     showToast(`Signed in to ${shop.shop_name}`);
   };
 
-  const handleLoginWithEmail = async (identifier: string, _password?: string) => {
-    const shop = await sbLoginWithPhone(identifier);
-    if (shop) {
-      await refreshData(shop.id);
+  const handleLoginWithEmail = async (identifier: string, password?: string, method: 'EMAIL' | 'PHONE' = 'EMAIL') => {
+    const res = await sbLoginWithCredentials(identifier, password, method);
+    if (res.user) {
+      sbSetCurrentUser(res.user);
+      await refreshData(res.user.id);
       setIsAuthModalOpen(false);
-      showToast(`Signed in as ${shop.owner_name}`);
+      showToast(`Signed in to ${res.user.shop_name}`);
     } else {
-      showToast('Account not found. Please check your phone/email.');
+      showToast(res.error || 'Invalid credentials. Please check your details.');
     }
   };
 

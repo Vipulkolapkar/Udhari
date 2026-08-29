@@ -49,39 +49,93 @@ export async function sbRegisterShop(shopData: {
   password?: string;
   gstin?: string;
   shop_category: ShopCategory;
+  custom_category?: string;
   address?: string;
   terms_accepted?: boolean;
 }): Promise<ShopUser> {
+  const categoryToSave = (shopData.shop_category === 'OTHER' && shopData.custom_category)
+    ? shopData.custom_category
+    : shopData.shop_category;
+
   const newShop: ShopUser = {
     id: `shop_${Date.now()}`,
     shop_name: shopData.shop_name,
     owner_name: shopData.owner_name,
     phone: shopData.phone,
-    whatsapp_phone: shopData.whatsapp_phone || shopData.phone,
+    whatsapp_phone: shopData.phone,
     email: shopData.email,
     password: shopData.password,
     gstin: shopData.gstin,
-    shop_category: shopData.shop_category,
+    shop_category: categoryToSave as ShopCategory,
+    custom_category: shopData.custom_category,
     address: shopData.address,
     terms_accepted: shopData.terms_accepted ?? true,
     created_at: new Date().toISOString(),
   };
+  
+  // Try inserting full object
   const { error } = await supabase.from('shops').insert([newShop]);
-  if (error) throw new Error('Registration failed: ' + error.message);
+  if (error) {
+    // If custom_category column doesn't exist yet, insert without it
+    const fallbackObj = { ...newShop };
+    delete fallbackObj.custom_category;
+    const { error: fbErr } = await supabase.from('shops').insert([fallbackObj]);
+    if (fbErr) throw new Error('Registration failed: ' + fbErr.message);
+  }
+  
   setCurrentShopId(newShop.id);
   return newShop;
 }
 
-export async function sbLoginWithPhone(identifier: string): Promise<ShopUser | null> {
+export async function sbLoginWithCredentials(
+  identifier: string,
+  password?: string,
+  method: 'EMAIL' | 'PHONE' = 'EMAIL'
+): Promise<{ user: ShopUser | null; error?: string }> {
   const clean = identifier.trim().toLowerCase();
-  const { data, error } = await supabase
-    .from('shops')
-    .select('*')
-    .or(`phone.eq.${clean},email.eq.${clean}`)
-    .limit(1);
-  if (error || !data || data.length === 0) return null;
-  setCurrentShopId(data[0].id);
-  return data[0] as ShopUser;
+  
+  let query = supabase.from('shops').select('*');
+  if (method === 'EMAIL') {
+    query = query.eq('email', clean);
+  } else {
+    // Clean digits for phone
+    const cleanDigits = identifier.replace(/\D/g, '');
+    query = query.or(`phone.eq.${clean},phone.eq.${cleanDigits}`);
+  }
+  
+  const { data, error } = await query.limit(1);
+  if (error || !data || data.length === 0) {
+    // Try fallback check in case method was ambiguous
+    const { data: fallbackData } = await supabase
+      .from('shops')
+      .select('*')
+      .or(`phone.eq.${clean},email.eq.${clean}`)
+      .limit(1);
+      
+    if (!fallbackData || fallbackData.length === 0) {
+      return { user: null, error: `No business account found with this ${method === 'EMAIL' ? 'email' : 'mobile number'}.` };
+    }
+    
+    const shop = fallbackData[0] as ShopUser;
+    if (password && shop.password && shop.password !== password) {
+      return { user: null, error: 'Incorrect password. Please try again.' };
+    }
+    setCurrentShopId(shop.id);
+    return { user: shop };
+  }
+
+  const shop = data[0] as ShopUser;
+  if (password && shop.password && shop.password !== password) {
+    return { user: null, error: 'Incorrect password. Please try again.' };
+  }
+
+  setCurrentShopId(shop.id);
+  return { user: shop };
+}
+
+export async function sbLoginWithPhone(identifier: string): Promise<ShopUser | null> {
+  const res = await sbLoginWithCredentials(identifier);
+  return res.user;
 }
 
 export async function sbUpdateShop(shopId: string, updates: Partial<ShopUser>): Promise<ShopUser | null> {

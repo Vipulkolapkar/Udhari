@@ -114,6 +114,11 @@ export const CATEGORY_PRESET_ITEMS: Record<ShopCategory, PresetItem[]> = {
     { name: 'Custom Product Unit Batch A', price: 150 },
     { name: 'Custom Product Unit Batch B', price: 450 },
     { name: 'Equipment Repair & Maintenance', price: 350 }
+  ],
+  OTHER: [
+    { name: 'Standard Product / Service', price: 200 },
+    { name: 'Custom Order Unit', price: 500 },
+    { name: 'Service / Maintenance Fee', price: 350 }
   ]
 };
 

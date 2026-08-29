@@ -415,6 +415,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   <option value="HARDWARE">{categoryLabels.HARDWARE.en}</option>
                   <option value="CLOTHING">{categoryLabels.CLOTHING.en}</option>
                   <option value="GENERAL">{categoryLabels.GENERAL.en}</option>
+                    <option value="OTHER">{categoryLabels.OTHER.en}</option>
                 </select>
               </div>
 

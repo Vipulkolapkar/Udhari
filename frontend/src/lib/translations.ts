@@ -3,14 +3,14 @@ import { ShopCategory, Language } from '../types';
 const translations = {
   en: {
     appBrand: 'Udhari',
-    defaultShopSubtitle: 'Digital Credit & Payment Tracking for Small Businesses',
+    defaultShopSubtitle: '',
     signIn: 'Sign In',
     signUp: 'Register New Business',
     signOut: 'Sign Out',
     orContinueWithEmail: 'Sign in with your registered email or phone',
     orRegisterWithEmail: 'Fill in your business details to get started',
     emailOrPhone: 'Email Address or Mobile Number',
-    password: 'Password (Optional)',
+    password: 'Password',
     forgotPassword: 'Forgot Password?',
     dontHaveAccount: "Don't have an account? Register now",
     alreadyHaveAccount: 'Already have an account? Sign in',
@@ -135,6 +135,7 @@ export const categoryLabels: Record<ShopCategory, { en: string; icon: string }> 
   HARDWARE:   { en: 'Hardware & Electrical',  icon: '🔧' },
   CLOTHING:   { en: 'Textiles & Garments',    icon: '👕' },
   GENERAL:    { en: 'General Commerce',       icon: '🏪' },
+  OTHER:      { en: 'Other Business Type',    icon: '✨' },
 };
 
 export const getTranslation = (_lang: Language) => translations.en;

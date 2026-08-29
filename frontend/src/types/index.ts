@@ -12,7 +12,8 @@ export type ShopCategory =
   | 'MEDICAL'
   | 'HARDWARE'
   | 'CLOTHING'
-  | 'GENERAL';
+  | 'GENERAL'
+  | 'OTHER';
 
 export interface ShopUser {
   id: string;
@@ -24,6 +25,7 @@ export interface ShopUser {
   password?: string;
   gstin?: string;
   shop_category: ShopCategory;
+  custom_category?: string;
   address?: string;
   terms_accepted?: boolean;
   created_at: string;
