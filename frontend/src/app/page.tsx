@@ -785,6 +785,9 @@ export default function Home() {
             currentShop={currentShop}
             language={language}
             theme={theme}
+            customers={customers}
+            invoices={invoices}
+            payments={payments}
             onBackToDashboard={() => setCurrentView('DASHBOARD')}
             onLanguageChange={handleLanguageChange}
             onThemeChange={handleThemeChange}

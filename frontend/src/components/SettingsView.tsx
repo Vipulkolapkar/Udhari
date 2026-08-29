@@ -8,14 +8,16 @@ import {
   Shield,
   RotateCcw,
   Check,
-  Building2,
   Lock,
   Download,
+  FileSpreadsheet,
+  FileJson,
   CheckCircle2,
   Loader2
 } from 'lucide-react';
 import { ShopUser, Language, ThemeMode, Customer, Invoice, Payment } from '../types';
 import { getTranslation } from '../lib/translations';
+import { sbGetCustomers, sbGetInvoices, sbGetPayments } from '../lib/supabaseStore';
 
 interface SettingsViewProps {
   currentShop: ShopUser | null;
@@ -49,11 +51,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [activeTab, setActiveTab] = useState<SettingsTab>('APPEARANCE');
 
   // Password Change
-  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordMsg, setPasswordMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
+  const [isExportingJson, setIsExportingJson] = useState(false);
+  const [isExportingCsv, setIsExportingCsv] = useState(false);
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,7 +75,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     try {
       onSaveShopSettings({ password: newPassword });
       setPasswordMsg({ type: 'success', text: 'Password updated successfully!' });
-      setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
     } catch (err: any) {
@@ -82,22 +84,100 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
   };
 
-  const handleExportData = () => {
-    const backupObj = {
-      exportDate: new Date().toISOString(),
-      shop: currentShop,
-      customers,
-      invoices,
-      payments
-    };
+  // 1. Export Complete JSON Backup
+  const handleExportJSON = async () => {
+    if (!currentShop) return;
+    setIsExportingJson(true);
+    try {
+      // Fetch freshest live data from Supabase Cloud
+      const [liveCustomers, liveInvoices, livePayments] = await Promise.all([
+        sbGetCustomers(currentShop.id),
+        sbGetInvoices(currentShop.id),
+        sbGetPayments(currentShop.id)
+      ]);
 
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(backupObj, null, 2));
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute('href', dataStr);
-    downloadAnchor.setAttribute('download', `udhari_backup_${currentShop?.shop_name || 'shop'}_${new Date().toISOString().slice(0, 10)}.json`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
+      const backupObj = {
+        exportVersion: '1.0',
+        exportedAt: new Date().toISOString(),
+        shop: currentShop,
+        summary: {
+          totalCustomers: liveCustomers.length,
+          totalInvoices: liveInvoices.length,
+          totalPayments: livePayments.length,
+          totalOutstandingDue: liveCustomers.reduce((sum, c) => sum + (c.current_balance || 0), 0)
+        },
+        customers: liveCustomers,
+        invoices: liveInvoices,
+        payments: livePayments
+      };
+
+      const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(backupObj, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute('href', dataStr);
+      downloadAnchor.setAttribute(
+        'download',
+        `udhari_complete_backup_${(currentShop.shop_name || 'shop').replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.json`
+      );
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    } catch (err) {
+      console.error('Export error:', err);
+      alert('Failed to generate backup. Please check your internet connection.');
+    } finally {
+      setIsExportingJson(false);
+    }
+  };
+
+  // 2. Export Excel / CSV Customer Ledger Report
+  const handleExportCSV = async () => {
+    if (!currentShop) return;
+    setIsExportingCsv(true);
+    try {
+      const [liveCustomers, liveInvoices, livePayments] = await Promise.all([
+        sbGetCustomers(currentShop.id),
+        sbGetInvoices(currentShop.id),
+        sbGetPayments(currentShop.id)
+      ]);
+
+      let csvContent = 'Customer ID,Customer Name,Phone,Landmark/Address,Balance Due (INR),Total Bills,Total Payments Received,Account Created\n';
+
+      liveCustomers.forEach((cust) => {
+        const custInvoices = liveInvoices.filter((i) => i.customer_id === cust.id);
+        const custPayments = livePayments.filter((p) => p.customer_id === cust.id);
+        const totalCredit = custInvoices.reduce((sum, i) => sum + (i.total_amount || 0), 0);
+        const totalPaid = custPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+
+        const row = [
+          `"${cust.id}"`,
+          `"${cust.name.replace(/"/g, '""')}"`,
+          `"${cust.phone}"`,
+          `"${(cust.address_landmark || '').replace(/"/g, '""')}"`,
+          cust.current_balance || 0,
+          totalCredit,
+          totalPaid,
+          `"${new Date(cust.created_at).toLocaleDateString('en-IN')}"`
+        ];
+        csvContent += row.join(',') + '\n';
+      });
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute(
+        'download',
+        `udhari_customer_ledger_${(currentShop.shop_name || 'shop').replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.csv`
+      );
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      console.error('CSV export error:', err);
+      alert('Failed to generate CSV export.');
+    } finally {
+      setIsExportingCsv(false);
+    }
   };
 
   return (
@@ -369,14 +449,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
               <div style={{ borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.75rem' }}>
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.25rem 0' }}>
-                  Data Management & Backups
+                  Data Management & Export
                 </h3>
                 <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0 }}>
-                  Export offline copies of your customers, bills, and payment records
+                  Download complete backups and spreadsheet ledger statements from your live database
                 </p>
               </div>
 
-              {/* Export Backup Card */}
+              {/* 1. Complete JSON Database Backup */}
               <div style={{
                 background: 'var(--bg-surface-elevated)',
                 border: '1px solid var(--border-medium)',
@@ -388,21 +468,73 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 gap: '1rem'
               }}>
                 <div>
-                  <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.92rem' }}>
-                    Export Offline Backup (JSON)
+                  <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.94rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                    <FileJson size={17} color="var(--text-primary)" />
+                    <span>Complete JSON Database Backup</span>
                   </div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-                    Download complete snapshot of all customers ({customers.length}), invoices ({invoices.length}), and payments ({payments.length}).
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.35rem', lineHeight: 1.4 }}>
+                    Full raw data export including all customer profiles, individual bills, purchased item details, payments, and FIFO clearance allocations.
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  style={{ whiteSpace: 'nowrap', fontWeight: 700, minWidth: '160px' }}
+                  onClick={handleExportJSON}
+                  disabled={isExportingJson}
+                >
+                  {isExportingJson ? (
+                    <>
+                      <Loader2 size={15} style={{ animation: 'spin 0.8s linear infinite' }} />
+                      <span>Fetching Data...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download size={15} />
+                      <span>Download JSON</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* 2. Customer Ledger CSV / Excel Spreadsheet */}
+              <div style={{
+                background: 'var(--bg-surface-elevated)',
+                border: '1px solid var(--border-medium)',
+                borderRadius: 'var(--radius-sm)',
+                padding: '1.25rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '1rem'
+              }}>
+                <div>
+                  <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.94rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                    <FileSpreadsheet size={17} color="var(--color-credit)" />
+                    <span>Customer Ledger Spreadsheet (CSV / Excel)</span>
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.35rem', lineHeight: 1.4 }}>
+                    Ready for Excel / Google Sheets: Customer names, phone numbers, addresses, total credit issued, total collected, and current outstanding balances.
                   </div>
                 </div>
                 <button
                   type="button"
                   className="btn btn-outline"
-                  style={{ whiteSpace: 'nowrap', fontWeight: 700 }}
-                  onClick={handleExportData}
+                  style={{ whiteSpace: 'nowrap', fontWeight: 700, minWidth: '160px', borderColor: 'var(--color-credit-border)', color: 'var(--color-credit)' }}
+                  onClick={handleExportCSV}
+                  disabled={isExportingCsv}
                 >
-                  <Download size={15} />
-                  <span>Download Backup</span>
+                  {isExportingCsv ? (
+                    <>
+                      <Loader2 size={15} style={{ animation: 'spin 0.8s linear infinite' }} />
+                      <span>Generating CSV...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download size={15} />
+                      <span>Download Excel / CSV</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>
