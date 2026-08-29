@@ -67,6 +67,13 @@ export default function Home() {
   const [isInitialized, setIsInitialized] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [oauthSuccessState, setOauthSuccessState] = useState<{ isSuccess: boolean; title: string; subtitle: string } | null>(null);
+  const [prefilledAuth, setPrefilledAuth] = useState<{
+    tab?: 'LOGIN' | 'REGISTER';
+    email?: string;
+    ownerName?: string;
+    isEmailVerified?: boolean;
+    message?: string;
+  } | null>(null);
 
   // Active Modals State
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -172,7 +179,9 @@ export default function Home() {
           const allShops = await sbGetShops();
           const userEmail = session.user.email?.toLowerCase();
           const matchedShop = allShops.find((s) => s.email?.toLowerCase() === userEmail);
+          
           if (matchedShop) {
+            // Account exists! Log in and show gamified welcome
             sbSetCurrentUser(matchedShop);
             await refreshData(matchedShop.id);
             setOauthSuccessState({
@@ -185,27 +194,17 @@ export default function Home() {
             showToast(`Signed in to ${matchedShop.shop_name}`);
             return;
           } else if (userEmail) {
-            // First time Google OAuth user: auto-create shop with their Google Name & Email
-            const fullName = session.user.user_metadata?.full_name || session.user.user_metadata?.name || 'Shop Owner';
-            const autoShopName = `${fullName}'s Store`;
-            const newShop = await sbRegisterShop({
-              shop_name: autoShopName,
-              owner_name: fullName,
-              phone: '9800000000',
-              email: userEmail,
-              shop_category: 'GENERAL',
-              terms_accepted: true
-            });
-            sbSetCurrentUser(newShop);
-            await refreshData(newShop.id);
-            setOauthSuccessState({
-              isSuccess: true,
-              title: `Account Created with Google!`,
-              subtitle: `Launching "${newShop.shop_name}"...`
-            });
-            await new Promise((r) => setTimeout(r, 1800));
+            // Account does NOT exist yet! Do not auto-create; redirect to registration with Google verified email
             setOauthSuccessState(null);
-            showToast(`Welcome! Business "${newShop.shop_name}" created successfully!`);
+            const fullName = session.user.user_metadata?.full_name || session.user.user_metadata?.name || '';
+            setPrefilledAuth({
+              tab: 'REGISTER',
+              email: userEmail,
+              ownerName: fullName,
+              isEmailVerified: true,
+              message: `✅ Google email verified (${userEmail}). No registered business found. Please enter your business details below to complete registration.`
+            });
+            showToast('No account found. Please complete business registration.');
             return;
           }
         } catch (e) {
@@ -587,6 +586,11 @@ export default function Home() {
         language={language}
         theme={theme}
         existingShops={existingShops}
+        initialTab={prefilledAuth?.tab || 'LOGIN'}
+        initialEmail={prefilledAuth?.email || ''}
+        initialOwnerName={prefilledAuth?.ownerName || ''}
+        initialEmailVerified={prefilledAuth?.isEmailVerified || false}
+        infoBanner={prefilledAuth?.message || null}
         onLogin={handleLoginShop}
         onLoginWithEmail={handleLoginWithEmail}
         onLoginWithGoogle={handleLoginWithGoogle}

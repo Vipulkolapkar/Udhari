@@ -24,6 +24,11 @@ interface AuthScreenProps {
   language: Language;
   theme: ThemeMode;
   existingShops: ShopUser[];
+  initialTab?: 'LOGIN' | 'REGISTER';
+  initialEmail?: string;
+  initialOwnerName?: string;
+  initialEmailVerified?: boolean;
+  infoBanner?: string | null;
   onLogin: (shop: ShopUser) => void;
   onLoginWithEmail: (identifier: string, password?: string, method?: 'EMAIL' | 'PHONE') => Promise<{ success: boolean; error?: string } | void> | void;
   onLoginWithGoogle: () => void;
@@ -44,11 +49,16 @@ interface AuthScreenProps {
 
 export const AuthScreen: React.FC<AuthScreenProps> = ({
   language,
+  initialTab = 'LOGIN',
+  initialEmail = '',
+  initialOwnerName = '',
+  initialEmailVerified = false,
+  infoBanner = null,
   onLoginWithEmail,
   onRegister
 }) => {
   const t = getTranslation(language);
-  const [tab, setTab] = useState<'LOGIN' | 'REGISTER'>('LOGIN');
+  const [tab, setTab] = useState<'LOGIN' | 'REGISTER'>(initialTab);
 
   // ─── Sign In State ────────────────────────────────────────────────
   const [loginMethod, setLoginMethod] = useState<'EMAIL' | 'PHONE'>('EMAIL');
@@ -61,9 +71,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
   // ─── Register State ───────────────────────────────────────────────
   const [shopName, setShopName] = useState('');
-  const [ownerName, setOwnerName] = useState('');
+  const [ownerName, setOwnerName] = useState(initialOwnerName);
   const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(initialEmail);
   const [registerPassword, setRegisterPassword] = useState('');
   const [showRegPassword, setShowRegPassword] = useState(false);
   const [category, setCategory] = useState<ShopCategory>('KIRANA');
@@ -74,7 +84,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // ─── Inline Email OTP State ───────────────────────────────────────
-  const [isEmailVerified, setIsEmailVerified] = useState(false);
+  const [isEmailVerified, setIsEmailVerified] = useState(initialEmailVerified);
+
+  useEffect(() => {
+    if (initialTab) setTab(initialTab);
+    if (initialEmail) setEmail(initialEmail);
+    if (initialOwnerName) setOwnerName(initialOwnerName);
+    if (initialEmailVerified !== undefined) setIsEmailVerified(initialEmailVerified);
+  }, [initialTab, initialEmail, initialOwnerName, initialEmailVerified]);
   const [isSendingOtp, setIsSendingOtp] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [otpValues, setOtpValues] = useState<string[]>(['', '', '', '', '', '']);
@@ -340,6 +357,23 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
         {/* Form Body */}
         <div style={{ padding: '1.75rem' }}>
+          {/* Google Verified / Info Banner */}
+          {infoBanner && (
+            <div style={{
+              background: 'rgba(37, 99, 235, 0.08)',
+              border: '1.5px solid rgba(37, 99, 235, 0.3)',
+              color: 'var(--text-primary)',
+              padding: '0.85rem 1rem',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: '0.85rem',
+              fontWeight: 500,
+              lineHeight: 1.4,
+              marginBottom: '1.25rem'
+            }}>
+              {infoBanner}
+            </div>
+          )}
+
           {/* Error Alert Box */}
           {errorMessage && (
             <div style={{
