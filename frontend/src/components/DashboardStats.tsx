@@ -15,10 +15,10 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({ metrics, languag
 
   return (
     <section className="metrics-grid" aria-label="Shop Key Performance Indicators">
-      {/* Total Market Debt */}
+      {/* 1. Total Outstanding Receivables */}
       <div className="metric-card">
-        <div className="metric-icon-box">
-          <IndianRupee size={18} color="var(--color-debit)" />
+        <div className="metric-icon-box" style={{ background: 'var(--color-debit-bg)', borderColor: 'var(--color-debit-border)' }}>
+          <IndianRupee size={20} color="var(--color-debit)" />
         </div>
         <div className="metric-info">
           <span className="metric-label">{t.totalMarketDebt}</span>
@@ -28,10 +28,10 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({ metrics, languag
         </div>
       </div>
 
-      {/* Today's Collected Payments */}
+      {/* 2. Today's Collected Payments */}
       <div className="metric-card">
-        <div className="metric-icon-box">
-          <ArrowDownRight size={18} color="var(--color-credit)" />
+        <div className="metric-icon-box" style={{ background: 'var(--color-credit-bg)', borderColor: 'var(--color-credit-border)' }}>
+          <ArrowDownRight size={20} color="var(--color-credit)" />
         </div>
         <div className="metric-info">
           <span className="metric-label">{t.collectedToday}</span>
@@ -41,27 +41,27 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({ metrics, languag
         </div>
       </div>
 
-      {/* Today's Credit Issued */}
+      {/* 3. Today's Credit Issued */}
       <div className="metric-card">
-        <div className="metric-icon-box">
-          <ArrowUpRight size={18} color="#e4e4e7" />
+        <div className="metric-icon-box" style={{ background: 'rgba(251, 146, 60, 0.12)', borderColor: 'rgba(251, 146, 60, 0.3)' }}>
+          <ArrowUpRight size={20} color="#fb923c" />
         </div>
         <div className="metric-info">
           <span className="metric-label">{t.creditGivenToday}</span>
-          <span className="metric-value" style={{ color: '#ffffff' }}>
+          <span className="metric-value" style={{ color: 'var(--text-primary)' }}>
             ₹{metrics.credit_given_today.toLocaleString('en-IN')}
           </span>
         </div>
       </div>
 
-      {/* Active Debtors Count */}
+      {/* 4. Active Debtors Count */}
       <div className="metric-card">
-        <div className="metric-icon-box">
-          <Users size={18} color="#a1a1aa" />
+        <div className="metric-icon-box" style={{ background: 'rgba(59, 130, 246, 0.12)', borderColor: 'rgba(59, 130, 246, 0.3)' }}>
+          <Users size={20} color="#3b82f6" />
         </div>
         <div className="metric-info">
           <span className="metric-label">{t.activeDebtors}</span>
-          <span className="metric-value" style={{ color: '#ffffff' }}>
+          <span className="metric-value" style={{ color: 'var(--text-primary)' }}>
             {metrics.active_debtors_count}
           </span>
         </div>
