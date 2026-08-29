@@ -172,8 +172,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         setIsDeleteAllModalOpen(false);
         setDeletePassword('');
         onResetData();
-        alert('All records deleted.');
-      } else {
+              } else {
         setDeleteError('Failed to delete. Try again.');
       }
     } catch (err: any) {

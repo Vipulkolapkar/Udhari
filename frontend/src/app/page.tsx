@@ -505,9 +505,11 @@ export default function Home() {
 
   // ─── Reset Data ───────────────────────────────────────────────────
   const handleResetData = async () => {
-    // For now just clears session & reloads
-    handleLogout();
-    showToast('Data reset. Please sign in again.');
+    if (currentShop) {
+      await refreshData(currentShop.id);
+    }
+    setCurrentView('DASHBOARD');
+    showToast('All customer and ledger data deleted.');
   };
 
   // ─── Voice Recognition ────────────────────────────────────────────
