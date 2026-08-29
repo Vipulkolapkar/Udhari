@@ -11,7 +11,6 @@ import {
   Lock,
   Download,
   FileSpreadsheet,
-  FileJson,
   Trash2,
   Loader2
 } from 'lucide-react';
@@ -58,7 +57,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [isSavingPassword, setIsSavingPassword] = useState(false);
 
   // Export State
-  const [isExportingJson, setIsExportingJson] = useState(false);
   const [isExportingCsv, setIsExportingCsv] = useState(false);
 
   // Delete All Data State
@@ -70,24 +68,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // 1. Verify Old Password
     if (currentShop?.password && oldPassword !== currentShop.password) {
-      setPasswordMsg({ type: 'error', text: 'Incorrect old password. Please enter your valid current password.' });
+      setPasswordMsg({ type: 'error', text: 'Incorrect current password.' });
       return;
     }
 
     if (!newPassword || newPassword.length < 6) {
-      setPasswordMsg({ type: 'error', text: 'New password must be at least 6 characters.' });
+      setPasswordMsg({ type: 'error', text: 'Password must be at least 6 characters.' });
       return;
     }
 
     if (newPassword === oldPassword) {
-      setPasswordMsg({ type: 'error', text: 'New password must be different from your old password.' });
+      setPasswordMsg({ type: 'error', text: 'New password must be different.' });
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setPasswordMsg({ type: 'error', text: 'New passwords do not match.' });
+      setPasswordMsg({ type: 'error', text: 'Passwords do not match.' });
       return;
     }
 
@@ -96,7 +93,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
     try {
       await onSaveShopSettings({ password: newPassword });
-      setPasswordMsg({ type: 'success', text: 'Password changed successfully!' });
+      setPasswordMsg({ type: 'success', text: 'Password updated successfully.' });
       setOldPassword('');
       setNewPassword('');
       setConfirmPassword('');
@@ -107,51 +104,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
   };
 
-  // 1. Export Complete JSON Backup
-  const handleExportJSON = async () => {
-    if (!currentShop) return;
-    setIsExportingJson(true);
-    try {
-      const [liveCustomers, liveInvoices, livePayments] = await Promise.all([
-        sbGetCustomers(currentShop.id),
-        sbGetInvoices(currentShop.id),
-        sbGetPayments(currentShop.id)
-      ]);
-
-      const backupObj = {
-        exportVersion: '1.0',
-        exportedAt: new Date().toISOString(),
-        shop: currentShop,
-        summary: {
-          totalCustomers: liveCustomers.length,
-          totalInvoices: liveInvoices.length,
-          totalPayments: livePayments.length,
-          totalOutstandingDue: liveCustomers.reduce((sum, c) => sum + (c.current_balance || 0), 0)
-        },
-        customers: liveCustomers,
-        invoices: liveInvoices,
-        payments: livePayments
-      };
-
-      const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(backupObj, null, 2));
-      const downloadAnchor = document.createElement('a');
-      downloadAnchor.setAttribute('href', dataStr);
-      downloadAnchor.setAttribute(
-        'download',
-        `udhari_backup_${(currentShop.shop_name || 'shop').replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.json`
-      );
-      document.body.appendChild(downloadAnchor);
-      downloadAnchor.click();
-      downloadAnchor.remove();
-    } catch (err) {
-      console.error('Export error:', err);
-      alert('Failed to generate backup. Please check your connection.');
-    } finally {
-      setIsExportingJson(false);
-    }
-  };
-
-  // 2. Export Excel / CSV Customer Ledger Report
+  // Export Excel / CSV Customer Ledger Report
   const handleExportCSV = async () => {
     if (!currentShop) return;
     setIsExportingCsv(true);
@@ -162,7 +115,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         sbGetPayments(currentShop.id)
       ]);
 
-      let csvContent = 'Customer ID,Customer Name,Phone,Landmark/Address,Balance Due (INR),Total Bills,Total Payments Received,Account Created\n';
+      let csvContent = 'Customer Name,Phone,Landmark/Address,Balance Due,Total Bills,Total Paid\n';
 
       liveCustomers.forEach((cust) => {
         const custInvoices = liveInvoices.filter((i) => i.customer_id === cust.id);
@@ -171,14 +124,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         const totalPaid = custPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
 
         const row = [
-          `"${cust.id}"`,
           `"${cust.name.replace(/"/g, '""')}"`,
           `"${cust.phone}"`,
           `"${(cust.address_landmark || '').replace(/"/g, '""')}"`,
           cust.current_balance || 0,
           totalCredit,
-          totalPaid,
-          `"${new Date(cust.created_at).toLocaleDateString('en-IN')}"`
+          totalPaid
         ];
         csvContent += row.join(',') + '\n';
       });
@@ -189,26 +140,26 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       link.setAttribute('href', url);
       link.setAttribute(
         'download',
-        `udhari_customer_ledger_${(currentShop.shop_name || 'shop').replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.csv`
+        `ledger_${(currentShop.shop_name || 'shop').replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.csv`
       );
       document.body.appendChild(link);
       link.click();
       link.remove();
     } catch (err) {
       console.error('CSV export error:', err);
-      alert('Failed to generate CSV export.');
+      alert('Failed to export CSV.');
     } finally {
       setIsExportingCsv(false);
     }
   };
 
-  // 3. Delete All Data Handler (Password protected)
+  // Delete All Data Handler
   const handleDeleteAllData = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentShop) return;
 
     if (currentShop.password && deletePassword !== currentShop.password) {
-      setDeleteError('Incorrect password. Please enter your valid password to proceed.');
+      setDeleteError('Incorrect password.');
       return;
     }
 
@@ -221,9 +172,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         setIsDeleteAllModalOpen(false);
         setDeletePassword('');
         onResetData();
-        alert('All customers, bills, and payment records have been deleted.');
+        alert('All records deleted.');
       } else {
-        setDeleteError('Failed to delete data. Please try again.');
+        setDeleteError('Failed to delete. Try again.');
       }
     } catch (err: any) {
       setDeleteError(err.message || 'Error deleting data.');
@@ -253,11 +204,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <ArrowLeft size={18} />
           </button>
           <div>
-            <h1 style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-              Settings & Preferences
+            <h1 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+              Settings
             </h1>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>
-              Customize application appearance, security, and data backups
+              Manage appearance, security, and data export
             </p>
           </div>
         </div>
@@ -343,7 +294,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               onClick={() => setActiveTab('DATA')}
             >
               <RotateCcw size={16} />
-              <span>Data & Backup</span>
+              <span>Data</span>
             </button>
           </div>
         </div>
@@ -354,12 +305,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           {activeTab === 'APPEARANCE' && (
             <div>
               <div style={{ marginBottom: '1.25rem', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.75rem' }}>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.25rem 0' }}>
+                <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 0.25rem 0' }}>
                   Theme Appearance
                 </h3>
-                <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0 }}>
-                  Choose your preferred visual theme for the application
-                </p>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
@@ -381,12 +329,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#ffffff', fontWeight: 700, fontSize: '0.92rem' }}>
                       <Moon size={16} />
-                      <span>Dark Theme (Recommended)</span>
+                      <span>Dark Theme</span>
                     </div>
                     {theme === 'dark' && <Check size={16} color="#ffffff" />}
                   </div>
                   <p style={{ fontSize: '0.78rem', color: '#a1a1aa', margin: 0 }}>
-                    Modern, high-contrast dark theme with reduced eye fatigue.
+                    High-contrast dark mode.
                   </p>
                 </div>
 
@@ -413,7 +361,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     {theme === 'light' && <Check size={16} color="#09090b" />}
                   </div>
                   <p style={{ fontSize: '0.78rem', color: '#71717a', margin: 0 }}>
-                    Clean, bright aesthetic with high-contrast text tokens.
+                    Clean bright mode.
                   </p>
                 </div>
               </div>
@@ -424,19 +372,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           {activeTab === 'SECURITY' && (
             <div>
               <div style={{ marginBottom: '1.25rem', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.75rem' }}>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.25rem 0' }}>
-                  Account Security & Password
+                <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 0.25rem 0' }}>
+                  Change Password
                 </h3>
-                <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0 }}>
-                  Update your shop access password
-                </p>
               </div>
 
               {passwordMsg && (
                 <div style={{
-                  padding: '0.75rem 1rem',
+                  padding: '0.65rem 0.85rem',
                   borderRadius: 'var(--radius-sm)',
-                  fontSize: '0.84rem',
+                  fontSize: '0.82rem',
                   fontWeight: 600,
                   marginBottom: '1rem',
                   background: passwordMsg.type === 'success' ? 'var(--color-credit-bg)' : 'var(--color-debit-bg)',
@@ -447,13 +392,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </div>
               )}
 
-              <form onSubmit={handlePasswordChange} style={{ maxWidth: '420px', display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+              <form onSubmit={handlePasswordChange} style={{ maxWidth: '400px', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                 <div className="form-group">
-                  <label className="form-label">Old / Current Password *</label>
+                  <label className="form-label">Current Password *</label>
                   <input
                     type="password"
                     className="form-input"
-                    placeholder="Enter your current password"
+                    placeholder="Enter current password"
                     value={oldPassword}
                     onChange={(e) => setOldPassword(e.target.value)}
                     required
@@ -490,136 +435,89 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   type="submit"
                   className="btn btn-primary"
                   disabled={isSavingPassword || !newPassword}
-                  style={{ alignSelf: 'flex-start', minHeight: '40px', fontWeight: 700 }}
+                  style={{ alignSelf: 'flex-start', minHeight: '38px', fontWeight: 700 }}
                 >
                   {isSavingPassword ? (
                     <>
                       <Loader2 size={15} style={{ animation: 'spin 0.8s linear infinite' }} />
-                      <span>Updating Password...</span>
+                      <span>Updating...</span>
                     </>
                   ) : (
-                    <>
-                      <Lock size={15} />
-                      <span>Save New Password</span>
-                    </>
+                    <span>Save Password</span>
                   )}
                 </button>
               </form>
             </div>
           )}
 
-          {/* 3. Data & Backup */}
+          {/* 3. Data */}
           {activeTab === 'DATA' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div style={{ borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.75rem' }}>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.25rem 0' }}>
-                  Data Management & Export
+                <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+                  Data Management
                 </h3>
-                <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0 }}>
-                  Download complete backups or delete all customer and ledger records
-                </p>
               </div>
 
-              {/* 1. Complete JSON Database Backup */}
+              {/* 1. Customer Ledger CSV / Excel Spreadsheet */}
               <div style={{
                 background: 'var(--bg-surface-elevated)',
                 border: '1px solid var(--border-medium)',
                 borderRadius: 'var(--radius-sm)',
-                padding: '1.25rem',
+                padding: '1.15rem 1.25rem',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 gap: '1rem'
               }}>
                 <div>
-                  <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.94rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                    <FileJson size={17} color="var(--text-primary)" />
-                    <span>Download JSON Backup</span>
+                  <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.92rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                    <FileSpreadsheet size={16} color="var(--color-credit)" />
+                    <span>Download Ledger (Excel / CSV)</span>
                   </div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.35rem', lineHeight: 1.4 }}>
-                    Full raw data export including all customer profiles, bills, purchased item details, payments, and FIFO allocations.
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  style={{ whiteSpace: 'nowrap', fontWeight: 700, minWidth: '160px' }}
-                  onClick={handleExportJSON}
-                  disabled={isExportingJson}
-                >
-                  {isExportingJson ? (
-                    <>
-                      <Loader2 size={15} style={{ animation: 'spin 0.8s linear infinite' }} />
-                      <span>Fetching Data...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Download size={15} />
-                      <span>Download JSON</span>
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {/* 2. Customer Ledger CSV / Excel Spreadsheet */}
-              <div style={{
-                background: 'var(--bg-surface-elevated)',
-                border: '1px solid var(--border-medium)',
-                borderRadius: 'var(--radius-sm)',
-                padding: '1.25rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '1rem'
-              }}>
-                <div>
-                  <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.94rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                    <FileSpreadsheet size={17} color="var(--color-credit)" />
-                    <span>Download Excel / CSV</span>
-                  </div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.35rem', lineHeight: 1.4 }}>
-                    Ready for Excel / Google Sheets: Customer names, phone numbers, addresses, total credit issued, total collected, and current balances.
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                    Export customer list, phone numbers, and balances to spreadsheet.
                   </div>
                 </div>
                 <button
                   type="button"
                   className="btn btn-outline"
-                  style={{ whiteSpace: 'nowrap', fontWeight: 700, minWidth: '160px', borderColor: 'var(--color-credit-border)', color: 'var(--color-credit)' }}
+                  style={{ whiteSpace: 'nowrap', fontWeight: 700, minWidth: '150px' }}
                   onClick={handleExportCSV}
                   disabled={isExportingCsv}
                 >
                   {isExportingCsv ? (
                     <>
-                      <Loader2 size={15} style={{ animation: 'spin 0.8s linear infinite' }} />
-                      <span>Generating CSV...</span>
+                      <Loader2 size={14} style={{ animation: 'spin 0.8s linear infinite' }} />
+                      <span>Exporting...</span>
                     </>
                   ) : (
                     <>
-                      <Download size={15} />
-                      <span>Download Excel / CSV</span>
+                      <Download size={14} />
+                      <span>Download CSV</span>
                     </>
                   )}
                 </button>
               </div>
 
-              {/* 3. Delete All Data Card */}
+              {/* 2. Delete All Data Card */}
               <div style={{
                 background: 'var(--bg-surface-elevated)',
                 border: '1px solid var(--border-medium)',
                 borderRadius: 'var(--radius-sm)',
-                padding: '1.25rem',
+                padding: '1.15rem 1.25rem',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 gap: '1rem'
               }}>
                 <div>
-                  <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.94rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                  <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.92rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
                     <Trash2 size={16} color="var(--text-secondary)" />
                     <span>Delete All Data</span>
                   </div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.35rem', lineHeight: 1.4 }}>
-                    Delete all customers, credit bills, and payment records for this shop. Enter password to proceed.
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                    Permanently delete all customers, bills, and payments.
                   </div>
                 </div>
                 <button
@@ -628,7 +526,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   style={{
                     whiteSpace: 'nowrap',
                     fontWeight: 700,
-                    minWidth: '160px',
+                    minWidth: '150px',
                     borderColor: 'var(--border-medium)',
                     color: 'var(--color-debit)'
                   }}
@@ -647,16 +545,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
       </div>
 
-      {/* Password-Protected Delete All Data Modal */}
+      {/* Clean Password Verification Delete Modal */}
       {isDeleteAllModalOpen && (
         <div className="modal-overlay" onClick={() => setIsDeleteAllModalOpen(false)}>
           <div
             className="modal-content"
             onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: '420px', width: '100%', padding: '1.5rem' }}
+            style={{ maxWidth: '400px', width: '100%', padding: '1.5rem' }}
           >
-            <div className="modal-header" style={{ marginBottom: '1rem' }}>
-              <div className="modal-title" style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+            <div className="modal-header" style={{ marginBottom: '0.75rem' }}>
+              <div className="modal-title" style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                 <span>Delete All Data</span>
               </div>
               <button type="button" className="icon-btn" onClick={() => setIsDeleteAllModalOpen(false)} disabled={isDeletingAll}>
@@ -664,17 +562,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </button>
             </div>
 
-            <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', lineHeight: 1.4, margin: '0 0 1rem 0' }}>
-              Please enter your password to proceed with deleting all customer records, bills, and payments for <strong>{currentShop?.shop_name}</strong>.
+            <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', margin: '0 0 1rem 0' }}>
+              Enter password to delete all records for <strong>{currentShop?.shop_name}</strong>.
             </p>
 
             {deleteError && (
               <div style={{
-                padding: '0.65rem 0.85rem',
+                padding: '0.55rem 0.75rem',
                 borderRadius: 'var(--radius-sm)',
-                fontSize: '0.82rem',
+                fontSize: '0.8rem',
                 fontWeight: 600,
-                marginBottom: '1rem',
+                marginBottom: '0.85rem',
                 background: 'var(--color-debit-bg)',
                 border: '1px solid var(--color-debit-border)',
                 color: 'var(--color-debit)'
@@ -684,12 +582,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             )}
 
             <form onSubmit={handleDeleteAllData}>
-              <div className="form-group" style={{ marginBottom: '1.25rem' }}>
+              <div className="form-group" style={{ marginBottom: '1.15rem' }}>
                 <label className="form-label">Password *</label>
                 <input
                   type="password"
                   className="form-input"
-                  placeholder="Enter your password to proceed"
+                  placeholder="Enter password"
                   value={deletePassword}
                   onChange={(e) => setDeletePassword(e.target.value)}
                   required
@@ -697,11 +595,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 />
               </div>
 
-              <div style={{ display: 'flex', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', gap: '0.65rem' }}>
                 <button
                   type="button"
                   className="btn btn-outline"
-                  style={{ flex: 1, padding: '0.65rem 1rem', fontWeight: 600 }}
+                  style={{ flex: 1, padding: '0.6rem 0.85rem', fontWeight: 600 }}
                   onClick={() => setIsDeleteAllModalOpen(false)}
                   disabled={isDeletingAll}
                 >
@@ -713,7 +611,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   disabled={isDeletingAll || !deletePassword}
                   style={{
                     flex: 1,
-                    padding: '0.65rem 1rem',
+                    padding: '0.6rem 0.85rem',
                     fontWeight: 700,
                     background: 'var(--color-debit)',
                     color: '#ffffff',
@@ -728,11 +626,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 >
                   {isDeletingAll ? (
                     <>
-                      <Loader2 size={15} style={{ animation: 'spin 0.8s linear infinite' }} />
+                      <Loader2 size={14} style={{ animation: 'spin 0.8s linear infinite' }} />
                       <span>Deleting...</span>
                     </>
                   ) : (
-                    <span>Delete All Data</span>
+                    <span>Delete</span>
                   )}
                 </button>
               </div>
