@@ -1,5 +1,5 @@
 'use client';
-import { LogOut } from 'lucide-react';
+import { LogOut, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -17,6 +17,7 @@ import {
   sbUpdateShop,
   sbGetCustomers,
   sbAddCustomer,
+  sbDeleteCustomer,
   sbGetInvoices,
   sbAddInvoice,
   sbGetPayments,
@@ -67,6 +68,7 @@ export default function Home() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isSignOutConfirmOpen, setIsSignOutConfirmOpen] = useState(false);
+  const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [oauthSuccessState, setOauthSuccessState] = useState<{ isSuccess: boolean; title: string; subtitle: string } | null>(null);
   const [prefilledAuth, setPrefilledAuth] = useState<{
@@ -435,6 +437,25 @@ export default function Home() {
     }
   };
 
+  // ─── Delete Customer & All History ───────────────────────────────
+  const handleDeleteCustomer = async (customer: Customer) => {
+    if (!currentShop) return;
+    try {
+      const ok = await sbDeleteCustomer(customer.id);
+      if (ok) {
+        await refreshData(currentShop.id);
+        setCustomerToDelete(null);
+        setLedgerModalCustomer(null);
+        showToast(`Deleted "${customer.name}" and all history.`);
+      } else {
+        showToast('Failed to delete customer. Try again.');
+      }
+    } catch (err) {
+      console.error('Delete customer error:', err);
+      showToast('Error deleting customer.');
+    }
+  };
+
   // ─── Add Customer ─────────────────────────────────────────────────
   const handleAddCustomer = async (data: {
     name: string;
@@ -720,6 +741,7 @@ export default function Home() {
                       onGotPaymentClick={setPaymentModalCustomer}
                       onWhatsAppClick={setWhatsappModalCustomer}
                       onViewLedgerClick={setLedgerModalCustomer}
+                      onDeleteCustomerClick={setCustomerToDelete}
                     />
                   ))}
                 </div>
@@ -874,6 +896,90 @@ export default function Home() {
                 onClick={handleLogout}
               >
                 Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Customer Confirmation Modal */}
+      {customerToDelete && (
+        <div className="modal-overlay" onClick={() => setCustomerToDelete(null)}>
+          <div
+            className="modal-content"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '440px', width: '100%', padding: '1.75rem', textAlign: 'center' }}
+          >
+            <div style={{
+              width: '56px',
+              height: '56px',
+              borderRadius: '50%',
+              background: 'var(--color-debit-bg)',
+              border: '1.5px solid var(--color-debit-border)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 1.25rem auto'
+            }}>
+              <Trash2 size={26} color="var(--color-debit)" />
+            </div>
+
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.5rem 0' }}>
+              Delete Customer Account?
+            </h3>
+            <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.4, margin: '0 0 1rem 0' }}>
+              Are you sure you want to permanently delete <strong>{customerToDelete.name}</strong>?
+            </p>
+
+            <div style={{
+              background: 'var(--bg-surface-elevated)',
+              border: '1px solid var(--border-medium)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '0.85rem',
+              textAlign: 'left',
+              fontSize: '0.8rem',
+              color: 'var(--text-muted)',
+              marginBottom: '1.5rem',
+              lineHeight: 1.4
+            }}>
+              ⚠️ This will permanently erase:
+              <ul style={{ margin: '0.4rem 0 0 1rem', padding: 0 }}>
+                <li>All credit bills & invoice items</li>
+                <li>All payment history & receipts</li>
+                <li>All ledger records and balance dues</li>
+              </ul>
+              {customerToDelete.current_balance > 0 && (
+                <div style={{ marginTop: '0.5rem', color: 'var(--color-debit)', fontWeight: 700 }}>
+                  Current Outstanding Due: ₹{customerToDelete.current_balance.toLocaleString('en-IN')}
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
+              <button
+                type="button"
+                className="btn btn-outline"
+                style={{ flex: 1, padding: '0.65rem 1rem', fontWeight: 600 }}
+                onClick={() => setCustomerToDelete(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn"
+                style={{
+                  flex: 1,
+                  padding: '0.65rem 1rem',
+                  fontWeight: 700,
+                  background: 'var(--color-debit)',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: 'var(--radius-sm)',
+                  cursor: 'pointer'
+                }}
+                onClick={() => handleDeleteCustomer(customerToDelete)}
+              >
+                Delete Everything
               </button>
             </div>
           </div>

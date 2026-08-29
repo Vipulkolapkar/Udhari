@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Phone, MapPin, Plus, ArrowDownLeft, BookOpen } from 'lucide-react';
+import { Phone, MapPin, Plus, ArrowDownLeft, BookOpen, Trash2 } from 'lucide-react';
 import { WhatsAppIcon } from './WhatsAppIcon';
 import { Customer, Language } from '../types';
 import { getTranslation } from '../lib/translations';
@@ -13,6 +13,7 @@ interface CustomerCardProps {
   onGotPaymentClick: (customer: Customer) => void;
   onWhatsAppClick: (customer: Customer) => void;
   onViewLedgerClick: (customer: Customer) => void;
+  onDeleteCustomerClick?: (customer: Customer) => void;
 }
 
 export const CustomerCard: React.FC<CustomerCardProps> = ({
@@ -22,6 +23,7 @@ export const CustomerCard: React.FC<CustomerCardProps> = ({
   onGotPaymentClick,
   onWhatsAppClick,
   onViewLedgerClick,
+  onDeleteCustomerClick,
 }) => {
   const t = getTranslation(language);
 
@@ -62,7 +64,7 @@ export const CustomerCard: React.FC<CustomerCardProps> = ({
           title={t.giveCredit}
         >
           <Plus size={15} />
-          <span>{language === 'mr' ? ' ' : false ? ' ' : 'Give Credit'}</span>
+          <span>Give Credit</span>
         </button>
 
         {/* ₹ Payment */}
@@ -73,7 +75,7 @@ export const CustomerCard: React.FC<CustomerCardProps> = ({
           title={t.gotPayment}
         >
           <ArrowDownLeft size={15} />
-          <span>{language === 'mr' ? ' ' : false ? ' ' : 'Got Payment'}</span>
+          <span>Got Payment</span>
         </button>
 
         {/* WhatsApp Reminder */}
@@ -95,6 +97,21 @@ export const CustomerCard: React.FC<CustomerCardProps> = ({
         >
           <BookOpen size={16} color="var(--text-secondary)" />
         </button>
+
+        {/* Delete Customer */}
+        {onDeleteCustomerClick && (
+          <button
+            type="button"
+            className="icon-btn"
+            style={{ color: 'var(--text-muted)' }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-debit)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; }}
+            onClick={() => onDeleteCustomerClick(customer)}
+            title="Delete Customer Account & All History"
+          >
+            <Trash2 size={15} />
+          </button>
+        )}
       </div>
     </article>
   );

@@ -198,9 +198,58 @@ export async function sbUpdateCustomer(customerId: string, updates: Partial<Cust
   if (error) console.error('sbUpdateCustomer:', error);
 }
 
-export async function sbDeleteCustomer(customerId: string): Promise<void> {
-  const { error } = await supabase.from('customers').delete().eq('id', customerId);
-  if (error) console.error('sbDeleteCustomer:', error);
+export async function sbDeleteCustomer(customerId: string): Promise<boolean> {
+  try {
+    // 1. Find all customer invoices
+    const { data: custInvoices } = await supabase
+      .from('invoices')
+      .select('id')
+      .eq('customer_id', customerId);
+
+    const invoiceIds = (custInvoices || []).map((i) => i.id);
+
+    // 2. Find all customer payments
+    const { data: custPayments } = await supabase
+      .from('payments')
+      .select('id')
+      .eq('customer_id', customerId);
+
+    const paymentIds = (custPayments || []).map((p) => p.id);
+
+    // 3. Delete allocations linked to this customer's invoices or payments
+    if (invoiceIds.length > 0) {
+      await supabase.from('payment_allocations').delete().in('invoice_id', invoiceIds);
+    }
+    if (paymentIds.length > 0) {
+      await supabase.from('payment_allocations').delete().in('payment_id', paymentIds);
+    }
+
+    // 4. Delete invoice items
+    if (invoiceIds.length > 0) {
+      await supabase.from('invoice_items').delete().in('invoice_id', invoiceIds);
+    }
+
+    // 5. Delete invoices
+    await supabase.from('invoices').delete().eq('customer_id', customerId);
+
+    // 6. Delete payments
+    await supabase.from('payments').delete().eq('customer_id', customerId);
+
+    // 7. Delete customer messages/reminders
+    await supabase.from('customer_messages').delete().eq('customer_id', customerId);
+
+    // 8. Delete the customer record
+    const { error: delErr } = await supabase.from('customers').delete().eq('id', customerId);
+    if (delErr) {
+      console.error('sbDeleteCustomer error:', delErr);
+      return false;
+    }
+
+    return true;
+  } catch (err) {
+    console.error('sbDeleteCustomer exception:', err);
+    return false;
+  }
 }
 
 // ─────────────────────────────────────────────────
