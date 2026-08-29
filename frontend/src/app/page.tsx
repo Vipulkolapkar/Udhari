@@ -140,16 +140,25 @@ export default function Home() {
     }
     refreshData().finally(() => setIsInitialized(true));
 
-    // ─── Listen for Email Verification / Link Click Redirects Across Tabs ───
-    const handleAuthEvent = async (session: any) => {
+    // Check if the current page load was specifically caused by an OAuth/MagicLink callback redirect in URL
+    const isAuthRedirectLanding = typeof window !== 'undefined' && (
+      window.location.hash.includes('access_token') ||
+      window.location.hash.includes('type=signup') ||
+      window.location.search.includes('code=')
+    );
+
+    // ─── Listen for Email Verification / Link Click Redirects ───
+    const handleAuthEvent = async (session: any, isFreshRedirect: boolean) => {
       if (!session?.user) return;
 
-      const isGoogle = session.user.app_metadata?.provider === 'google' || session.user.user_metadata?.provider === 'google';
-      setOauthSuccessState({
-        isSuccess: true,
-        title: isGoogle ? 'Verified with Google!' : 'Email Verified Successfully!',
-        subtitle: 'Preparing your secure business ledger...'
-      });
+      // Only show the gamified tick mark overlay if this was an actual fresh OAuth/link redirect landing
+      if (isFreshRedirect) {
+        setOauthSuccessState({
+          isSuccess: true,
+          title: 'Success!',
+          subtitle: 'Preparing your business workspace...'
+        });
+      }
 
       if (typeof window !== 'undefined') {
         const pending = localStorage.getItem('udhari_pending_registration');
@@ -160,13 +169,15 @@ export default function Home() {
             const newShop = await sbRegisterShop(shopData);
             sbSetCurrentUser(newShop);
             await refreshData(newShop.id);
-            setOauthSuccessState({
-              isSuccess: true,
-              title: `Welcome, ${newShop.owner_name}!`,
-              subtitle: `Setting up workspace for "${newShop.shop_name}"...`
-            });
-            await new Promise((r) => setTimeout(r, 1800));
-            setOauthSuccessState(null);
+            if (isFreshRedirect) {
+              setOauthSuccessState({
+                isSuccess: true,
+                title: 'Success!',
+                subtitle: `Welcome, ${newShop.owner_name} (${newShop.shop_name})`
+              });
+              await new Promise((r) => setTimeout(r, 1500));
+              setOauthSuccessState(null);
+            }
             showToast(`Welcome! Business "${newShop.shop_name}" registered successfully!`);
             return;
           } catch (e) {
@@ -181,20 +192,21 @@ export default function Home() {
           const matchedShop = allShops.find((s) => s.email?.toLowerCase() === userEmail);
           
           if (matchedShop) {
-            // Account exists! Log in and show gamified welcome
             sbSetCurrentUser(matchedShop);
             await refreshData(matchedShop.id);
-            setOauthSuccessState({
-              isSuccess: true,
-              title: `Welcome Back, ${matchedShop.owner_name}!`,
-              subtitle: `Loading "${matchedShop.shop_name}"...`
-            });
-            await new Promise((r) => setTimeout(r, 1800));
-            setOauthSuccessState(null);
+            if (isFreshRedirect) {
+              setOauthSuccessState({
+                isSuccess: true,
+                title: 'Success!',
+                subtitle: `Welcome back, ${matchedShop.owner_name} (${matchedShop.shop_name})`
+              });
+              await new Promise((r) => setTimeout(r, 1500));
+              setOauthSuccessState(null);
+            }
             showToast(`Signed in to ${matchedShop.shop_name}`);
             return;
           } else if (userEmail) {
-            // Account does NOT exist yet! Do not auto-create; redirect to registration with Google verified email
+            // Account does NOT exist yet! Route to registration with prefilled verified email
             setOauthSuccessState(null);
             const fullName = session.user.user_metadata?.full_name || session.user.user_metadata?.name || '';
             setPrefilledAuth({
@@ -202,7 +214,7 @@ export default function Home() {
               email: userEmail,
               ownerName: fullName,
               isEmailVerified: true,
-              message: `✅ Google email verified (${userEmail}). No registered business found. Please enter your business details below to complete registration.`
+              message: `✅ Email verified (${userEmail}). No registered business found. Please enter your business details below to complete registration.`
             });
             showToast('No account found. Please complete business registration.');
             return;
@@ -213,20 +225,24 @@ export default function Home() {
       }
 
       await refreshData();
-      await new Promise((r) => setTimeout(r, 1200));
-      setOauthSuccessState(null);
+      if (isFreshRedirect) {
+        setOauthSuccessState(null);
+      }
     };
 
-    // Check on mount if landed via email link hash / query
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        handleAuthEvent(session);
-      }
-    });
+    // Only process redirect landing if URL explicitly contains auth token/code
+    if (isAuthRedirectLanding) {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user) {
+          handleAuthEvent(session, true);
+        }
+      });
+    }
 
     const { data: authSub } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user && (event === 'SIGNED_IN' || event === 'USER_UPDATED')) {
-        await handleAuthEvent(session);
+      // Ignore background tab focus / token refresh events
+      if (event === 'SIGNED_IN' && isAuthRedirectLanding) {
+        await handleAuthEvent(session, true);
       }
     });
 
