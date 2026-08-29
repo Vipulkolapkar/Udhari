@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, Plus, Trash2, Tag, Calendar, User, ShoppingBag } from 'lucide-react';
+import { X, Plus, Trash2, Loader2, Tag, Calendar, User, ShoppingBag } from 'lucide-react';
 import { Customer, InvoiceItem, Language, ShopUser } from '../types';
 import { getTranslation } from '../lib/translations';
 import { CATEGORY_PRESET_ITEMS } from '../lib/mockData';

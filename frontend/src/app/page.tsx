@@ -1,5 +1,5 @@
 'use client';
-import { LogOut, Trash2 } from 'lucide-react';
+import { LogOut, Trash2, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -69,6 +69,8 @@ export default function Home() {
   const [isInitialized, setIsInitialized] = useState(false);
   const [isSignOutConfirmOpen, setIsSignOutConfirmOpen] = useState(false);
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
+  const [isDeletingCustomer, setIsDeletingCustomer] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [oauthSuccessState, setOauthSuccessState] = useState<{ isSuccess: boolean; title: string; subtitle: string } | null>(null);
   const [prefilledAuth, setPrefilledAuth] = useState<{
@@ -439,13 +441,14 @@ export default function Home() {
 
   // ─── Delete Customer & All History ───────────────────────────────
   const handleDeleteCustomer = async (customer: Customer) => {
-    if (!currentShop) return;
+    if (!currentShop || isDeletingCustomer) return;
+    setIsDeletingCustomer(true);
     try {
       const ok = await sbDeleteCustomer(customer.id);
       if (ok) {
-        await refreshData(currentShop.id);
         setCustomerToDelete(null);
         setLedgerModalCustomer(null);
+        await refreshData(currentShop.id);
         showToast(`Deleted "${customer.name}" and all history.`);
       } else {
         showToast('Failed to delete customer. Try again.');
@@ -453,6 +456,8 @@ export default function Home() {
     } catch (err) {
       console.error('Delete customer error:', err);
       showToast('Error deleting customer.');
+    } finally {
+      setIsDeletingCustomer(false);
     }
   };
 
@@ -883,6 +888,7 @@ export default function Home() {
               <button
                 type="button"
                 className="btn"
+                disabled={isSigningOut}
                 style={{
                   flex: 1,
                   padding: '0.65rem 1rem',
@@ -891,11 +897,30 @@ export default function Home() {
                   color: '#ffffff',
                   border: 'none',
                   borderRadius: 'var(--radius-sm)',
-                  cursor: 'pointer'
+                  cursor: isSigningOut ? 'not-allowed' : 'pointer',
+                  opacity: isSigningOut ? 0.7 : 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.45rem'
                 }}
-                onClick={handleLogout}
+                onClick={async () => {
+                  setIsSigningOut(true);
+                  try {
+                    await handleLogout();
+                  } finally {
+                    setIsSigningOut(false);
+                  }
+                }}
               >
-                Sign Out
+                {isSigningOut ? (
+                  <>
+                    <Loader2 size={16} style={{ animation: 'spin 0.8s linear infinite' }} />
+                    <span>Signing Out...</span>
+                  </>
+                ) : (
+                  <span>Sign Out</span>
+                )}
               </button>
             </div>
           </div>
@@ -967,6 +992,7 @@ export default function Home() {
               <button
                 type="button"
                 className="btn"
+                disabled={isDeletingCustomer}
                 style={{
                   flex: 1,
                   padding: '0.65rem 1rem',
@@ -975,11 +1001,23 @@ export default function Home() {
                   color: '#ffffff',
                   border: 'none',
                   borderRadius: 'var(--radius-sm)',
-                  cursor: 'pointer'
+                  cursor: isDeletingCustomer ? 'not-allowed' : 'pointer',
+                  opacity: isDeletingCustomer ? 0.7 : 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.45rem'
                 }}
                 onClick={() => handleDeleteCustomer(customerToDelete)}
               >
-                Delete Everything
+                {isDeletingCustomer ? (
+                  <>
+                    <Loader2 size={16} style={{ animation: 'spin 0.8s linear infinite' }} />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <span>Delete Everything</span>
+                )}
               </button>
             </div>
           </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { X, ArrowDownLeft, CheckCircle2, Sparkles } from 'lucide-react';
+import { X, ArrowDownLeft, Loader2, CheckCircle2, Sparkles } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Customer, Invoice, PaymentMode, Language } from '../types';
 import { getTranslation } from '../lib/translations';
@@ -34,6 +34,7 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('CASH');
   const [discountWaived, setDiscountWaived] = useState<number | ''>('');
   const [referenceNote, setReferenceNote] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Live FIFO calculation preview
   const fifoPreview = useMemo(() => {
