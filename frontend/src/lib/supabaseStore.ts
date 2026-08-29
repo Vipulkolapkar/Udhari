@@ -93,40 +93,32 @@ export async function sbLoginWithCredentials(
   method: 'EMAIL' | 'PHONE' = 'EMAIL'
 ): Promise<{ user: ShopUser | null; error?: string }> {
   const clean = identifier.trim().toLowerCase();
+  const cleanDigits = identifier.replace(/\D/g, '');
   
-  let query = supabase.from('shops').select('*');
-  if (method === 'EMAIL') {
-    query = query.eq('email', clean);
-  } else {
-    // Clean digits for phone
-    const cleanDigits = identifier.replace(/\D/g, '');
-    query = query.or(`phone.eq.${clean},phone.eq.${cleanDigits}`);
-  }
+  // Find shop by email or phone
+  let { data, error } = await supabase
+    .from('shops')
+    .select('*')
+    .or(`email.ilike.${clean},phone.eq.${clean},phone.eq.${cleanDigits}`)
+    .limit(1);
   
-  const { data, error } = await query.limit(1);
   if (error || !data || data.length === 0) {
-    // Try fallback check in case method was ambiguous
-    const { data: fallbackData } = await supabase
-      .from('shops')
-      .select('*')
-      .or(`phone.eq.${clean},email.eq.${clean}`)
-      .limit(1);
-      
-    if (!fallbackData || fallbackData.length === 0) {
-      return { user: null, error: `No business account found with this ${method === 'EMAIL' ? 'email' : 'mobile number'}.` };
-    }
-    
-    const shop = fallbackData[0] as ShopUser;
-    if (password && shop.password && shop.password !== password) {
-      return { user: null, error: 'Incorrect password. Please try again.' };
-    }
-    setCurrentShopId(shop.id);
-    return { user: shop };
+    return {
+      user: null,
+      error: `No business account found with this ${method === 'EMAIL' ? 'email address' : 'mobile number'}. Please check your entry or create an account.`
+    };
   }
 
   const shop = data[0] as ShopUser;
-  if (password && shop.password && shop.password !== password) {
-    return { user: null, error: 'Incorrect password. Please try again.' };
+
+  // Verify password
+  if (password) {
+    if (shop.password && shop.password !== password) {
+      return {
+        user: null,
+        error: 'Incorrect password for this account. Please check your password and try again.'
+      };
+    }
   }
 
   setCurrentShopId(shop.id);

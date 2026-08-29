@@ -235,15 +235,22 @@ export default function Home() {
     showToast(`Signed in to ${shop.shop_name}`);
   };
 
-  const handleLoginWithEmail = async (identifier: string, password?: string, method: 'EMAIL' | 'PHONE' = 'EMAIL') => {
+  const handleLoginWithEmail = async (
+    identifier: string,
+    password?: string,
+    method: 'EMAIL' | 'PHONE' = 'EMAIL'
+  ): Promise<{ success: boolean; error?: string }> => {
     const res = await sbLoginWithCredentials(identifier, password, method);
     if (res.user) {
       sbSetCurrentUser(res.user);
       await refreshData(res.user.id);
       setIsAuthModalOpen(false);
       showToast(`Signed in to ${res.user.shop_name}`);
+      return { success: true };
     } else {
-      showToast(res.error || 'Invalid credentials. Please check your details.');
+      const errMsg = res.error || 'Account not found or incorrect credentials.';
+      showToast(errMsg);
+      return { success: false, error: errMsg };
     }
   };
 

@@ -31,7 +31,7 @@ interface AuthModalProps {
   existingShops: ShopUser[];
   onClose: () => void;
   onLogin: (shop: ShopUser) => void;
-  onLoginWithEmail: (identifier: string, password?: string, method?: 'EMAIL' | 'PHONE') => void;
+  onLoginWithEmail: (identifier: string, password?: string, method?: 'EMAIL' | 'PHONE') => Promise<{ success: boolean; error?: string } | void> | void;
   onLoginWithGoogle: () => void;
   onRegister: (shopData: {
     shop_name: string;
@@ -192,7 +192,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
     setIsLoggingIn(true);
     try {
-      await onLoginWithEmail(identifier, loginPassword, loginMethod);
+      const res = await onLoginWithEmail(identifier, loginPassword, loginMethod);
+      if (res && !res.success && res.error) {
+        setErrorMessage(res.error);
+      }
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Login failed. Please check your credentials.');
     } finally {
       setIsLoggingIn(false);
     }
