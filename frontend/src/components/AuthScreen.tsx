@@ -336,66 +336,59 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           {/* ═══════════════════ SIGN IN FORM ═══════════════════ */}
           {tab === 'LOGIN' ? (
             <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
-              {/* Method Toggle: Email vs Mobile */}
-              <div>
-                <label className="form-label" style={{ marginBottom: '0.45rem', display: 'block' }}>
-                  Sign in using
-                </label>
-                <div style={{
-                  display: 'flex',
-                  background: 'var(--bg-surface-elevated)',
-                  border: '1px solid var(--border-medium)',
-                  borderRadius: 'var(--radius-sm)',
-                  padding: '3px',
-                  gap: '4px'
-                }}>
-                  <button
-                    type="button"
-                    style={{
-                      flex: 1,
-                      padding: '0.55rem',
-                      fontSize: '0.82rem',
-                      fontWeight: 600,
-                      border: 'none',
-                      borderRadius: 'var(--radius-xs)',
-                      background: loginMethod === 'EMAIL' ? 'var(--btn-primary-bg)' : 'transparent',
-                      color: loginMethod === 'EMAIL' ? '#ffffff' : 'var(--text-secondary)',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '0.4rem',
-                      transition: 'all 0.15s ease'
-                    }}
-                    onClick={() => { setLoginMethod('EMAIL'); setErrorMessage(null); }}
-                  >
-                    <Mail size={14} />
-                    <span>Email Address</span>
-                  </button>
-                  <button
-                    type="button"
-                    style={{
-                      flex: 1,
-                      padding: '0.55rem',
-                      fontSize: '0.82rem',
-                      fontWeight: 600,
-                      border: 'none',
-                      borderRadius: 'var(--radius-xs)',
-                      background: loginMethod === 'PHONE' ? 'var(--btn-primary-bg)' : 'transparent',
-                      color: loginMethod === 'PHONE' ? '#ffffff' : 'var(--text-secondary)',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '0.4rem',
-                      transition: 'all 0.15s ease'
-                    }}
-                    onClick={() => { setLoginMethod('PHONE'); setErrorMessage(null); }}
-                  >
-                    <Phone size={14} />
-                    <span>Mobile Number</span>
-                  </button>
-                </div>
+              {/* Compact Sleek Switcher between Email & Mobile */}
+              <div style={{
+                display: 'inline-flex',
+                alignSelf: 'center',
+                background: 'var(--bg-surface-elevated)',
+                border: '1px solid var(--border-medium)',
+                borderRadius: '9999px',
+                padding: '2px',
+                gap: '2px',
+                marginBottom: '0.15rem'
+              }}>
+                <button
+                  type="button"
+                  style={{
+                    padding: '0.28rem 0.75rem',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    border: 'none',
+                    borderRadius: '9999px',
+                    background: loginMethod === 'EMAIL' ? 'var(--btn-primary-bg)' : 'transparent',
+                    color: loginMethod === 'EMAIL' ? '#ffffff' : 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.3rem',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onClick={() => { setLoginMethod('EMAIL'); setErrorMessage(null); }}
+                >
+                  <Mail size={12} />
+                  <span>Email</span>
+                </button>
+                <button
+                  type="button"
+                  style={{
+                    padding: '0.28rem 0.75rem',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    border: 'none',
+                    borderRadius: '9999px',
+                    background: loginMethod === 'PHONE' ? 'var(--btn-primary-bg)' : 'transparent',
+                    color: loginMethod === 'PHONE' ? '#ffffff' : 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.3rem',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onClick={() => { setLoginMethod('PHONE'); setErrorMessage(null); }}
+                >
+                  <Phone size={12} />
+                  <span>Mobile</span>
+                </button>
               </div>
 
               {/* Identifier Input */}
