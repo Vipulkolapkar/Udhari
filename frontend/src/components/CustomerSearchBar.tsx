@@ -35,7 +35,7 @@ export const CustomerSearchBar: React.FC<CustomerSearchBarProps> = ({
 
   return (
     <div className="search-section">
-      <div className="search-input-wrapper">
+      <div className="search-input-wrapper" style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
         <Search size={18} className="search-icon-left" />
 
         <input
@@ -46,15 +46,31 @@ export const CustomerSearchBar: React.FC<CustomerSearchBarProps> = ({
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
           autoComplete="off"
-          style={{ paddingRight: '6.5rem' }}
+          style={{ paddingRight: '7rem', width: '100%' }}
         />
 
-        <div style={{ position: 'absolute', right: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+        <div style={{
+          position: 'absolute',
+          right: '0.65rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.45rem',
+          zIndex: 2
+        }}>
           {searchQuery && (
             <button
               type="button"
               className="icon-btn"
-              style={{ width: '28px', height: '28px' }}
+              style={{
+                width: '24px',
+                height: '24px',
+                padding: 0,
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--text-muted)'
+              }}
               onClick={() => onSearchChange('')}
               title={t.clearAll}
             >
@@ -67,7 +83,19 @@ export const CustomerSearchBar: React.FC<CustomerSearchBarProps> = ({
             <button
               type="button"
               className="icon-btn"
-              style={{ width: '28px', height: '28px', color: 'var(--text-primary)' }}
+              style={{
+                width: '28px',
+                height: '28px',
+                padding: 0,
+                borderRadius: 'var(--radius-xs)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--text-secondary)',
+                background: 'var(--bg-surface-elevated)',
+                border: '1px solid var(--border-subtle)',
+                cursor: 'pointer'
+              }}
               onClick={onVoiceClick}
               title={t.voiceBilling}
             >
