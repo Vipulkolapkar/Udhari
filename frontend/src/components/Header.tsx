@@ -21,7 +21,7 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const t = getTranslation(language);
 
-  // Format today's date nicely in selected locale
+  // Format today's date nicely
   const todayFormatted = new Date().toLocaleDateString('en-IN', {
     weekday: 'short',
     day: 'numeric',
@@ -43,8 +43,8 @@ export const Header: React.FC<HeaderProps> = ({
         gap: '1rem'
       }}
     >
-      {/* Front Page Top Left: Udhari Logo + Clean Shop Name */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', minWidth: 0 }}>
+      {/* Front Page Top Left: Logo + "Udhari" Title + Shop Name below it */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.9rem', minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
           <UdhariLogo size={46} />
         </div>
@@ -52,17 +52,32 @@ export const Header: React.FC<HeaderProps> = ({
         <div style={{ minWidth: 0 }}>
           <h1
             style={{
-              fontSize: '1.85rem',
+              fontSize: '2rem',
               fontWeight: 900,
               color: 'var(--text-primary)',
-              letterSpacing: '-0.03em',
-              lineHeight: 1.15,
+              letterSpacing: '-0.04em',
+              lineHeight: 1.1,
               margin: 0,
               fontFamily: 'var(--font-primary)'
             }}
           >
-            {currentShop ? currentShop.shop_name : 'Udhari'}
+            Udhari
           </h1>
+
+          {currentShop && (
+            <p
+              style={{
+                fontSize: '0.88rem',
+                color: 'var(--text-secondary)',
+                fontWeight: 600,
+                marginTop: '0.2rem',
+                margin: 0,
+                letterSpacing: '-0.01em'
+              }}
+            >
+              {currentShop.shop_name}
+            </p>
+          )}
         </div>
       </div>
 

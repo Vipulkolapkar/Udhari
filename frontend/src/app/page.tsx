@@ -65,6 +65,7 @@ export default function Home() {
   const [searchMode, setSearchMode] = useState<'NAME' | 'PHONE'>('NAME');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isSignOutConfirmOpen, setIsSignOutConfirmOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [oauthSuccessState, setOauthSuccessState] = useState<{ isSuccess: boolean; title: string; subtitle: string } | null>(null);
   const [prefilledAuth, setPrefilledAuth] = useState<{
@@ -141,11 +142,19 @@ export default function Home() {
     refreshData().finally(() => setIsInitialized(true));
 
     // Check if the current page load was specifically caused by an OAuth/MagicLink callback redirect in URL
-    const isAuthRedirectLanding = typeof window !== 'undefined' && (
+    const hasAuthHash = typeof window !== 'undefined' && (
       window.location.hash.includes('access_token') ||
       window.location.hash.includes('type=signup') ||
       window.location.search.includes('code=')
     );
+    const alreadyProcessed = typeof window !== 'undefined' && sessionStorage.getItem('udhari_oauth_processed') === 'true';
+    const isAuthRedirectLanding = hasAuthHash && !alreadyProcessed;
+
+    if (hasAuthHash && typeof window !== 'undefined') {
+      sessionStorage.setItem('udhari_oauth_processed', 'true');
+      // Clean the address bar immediately to prevent re-triggering on tab switches
+      window.history.replaceState(null, '', window.location.pathname);
+    }
 
     // ─── Listen for Email Verification / Link Click Redirects ───
     const handleAuthEvent = async (session: any, isFreshRedirect: boolean) => {
@@ -574,9 +583,7 @@ export default function Home() {
             }} />
           </div>
 
-          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', position: 'relative', zIndex: 1 }}>
-            ✨ Secure connection established
-          </span>
+
 
           <style>{`
             @keyframes popSuccess {
@@ -624,7 +631,7 @@ export default function Home() {
         currentShop={currentShop}
         onToggle={handleToggleSidebar}
         onSelectView={setCurrentView}
-        onLogout={handleLogout}
+        onLogout={() => setIsSignOutConfirmOpen(true)}
       />
 
       {/* Main Layout */}

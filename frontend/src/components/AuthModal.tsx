@@ -13,12 +13,15 @@ import {
   Send,
   RefreshCw,
   Mail,
-  Phone
+  Phone,
+  ArrowLeft,
+  KeyRound
 } from 'lucide-react';
 import { ShopUser, ShopCategory, Language } from '../types';
 import { getTranslation, categoryLabels } from '../lib/translations';
 import { UdhariLogo } from './UdhariLogo';
 import { supabase } from '../lib/supabase';
+import { sbResetShopPassword } from '../lib/supabaseStore';
 
 interface AuthModalProps {
   language: Language;
@@ -49,7 +52,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onRegister
 }) => {
   const t = getTranslation(language);
-  const [tab, setTab] = useState<'LOGIN' | 'REGISTER'>('LOGIN');
+  const [tab, setTab] = useState<'LOGIN' | 'REGISTER' | 'FORGOT_PASSWORD'>('LOGIN');
 
   // Sign In State
   const [loginMethod, setLoginMethod] = useState<'EMAIL' | 'PHONE'>('EMAIL');
@@ -73,8 +76,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [gstin, setGstin] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Inline OTP State
+  // Inline OTP State (Registration)
   const [isEmailVerified, setIsEmailVerified] = useState(false);
   const [isSendingOtp, setIsSendingOtp] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
@@ -85,6 +89,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const emailInputRef = useRef<HTMLInputElement>(null);
   const otpInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
+  // Forgot Password State
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotOtpSent, setForgotOtpSent] = useState(false);
+  const [forgotOtpValues, setForgotOtpValues] = useState<string[]>(['', '', '', '', '', '']);
+  const [forgotTimer, setForgotTimer] = useState(60);
+  const [forgotNewPassword, setForgotNewPassword] = useState('');
+  const [forgotConfirmPassword, setForgotConfirmPassword] = useState('');
+  const [showForgotPass, setShowForgotPass] = useState(false);
+  const [isSendingForgotOtp, setIsSendingForgotOtp] = useState(false);
+  const [isResettingPass, setIsResettingPass] = useState(false);
+  const forgotOtpRefs = useRef<(HTMLInputElement | null)[]>([]);
+
   useEffect(() => {
     if (otpTimer <= 0 || !otpSent) return;
     const interval = setInterval(() => setOtpTimer((prev) => prev - 1), 1000);
@@ -92,17 +108,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   }, [otpTimer, otpSent]);
 
   useEffect(() => {
-    if (!otpSent || isEmailVerified) return;
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
-        if (session?.user?.email?.toLowerCase() === email.trim().toLowerCase() || !session?.user?.email) {
-          setIsEmailVerified(true);
-          setOtpError(null);
-        }
-      }
-    });
-    return () => { authListener.subscription.unsubscribe(); };
-  }, [otpSent, email, isEmailVerified]);
+    if (forgotTimer <= 0 || !forgotOtpSent) return;
+    const interval = setInterval(() => setForgotTimer((prev) => prev - 1), 1000);
+    return () => clearInterval(interval);
+  }, [forgotTimer, forgotOtpSent]);
 
   const handleSendEmailOtp = async () => {
     const cleanEmail = email.trim().toLowerCase();
@@ -167,12 +176,69 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     if (fullCode.length === 6 && !newValues.includes('')) handleVerifyCode(fullCode);
   };
 
-  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Backspace') {
-      if (!otpValues[index] && index > 0) otpInputRefs.current[index - 1]?.focus();
-      const newValues = [...otpValues];
-      newValues[index] = '';
-      setOtpValues(newValues);
+  const handleSendForgotOtp = async () => {
+    const cleanEmail = forgotEmail.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      setErrorMessage('Please enter your registered email address.');
+      return;
+    }
+    setIsSendingForgotOtp(true);
+    setErrorMessage(null);
+    try {
+      await supabase.auth.signOut().catch(() => {});
+      const { error } = await supabase.auth.signInWithOtp({
+        email: cleanEmail,
+        options: { emailRedirectTo: typeof window !== 'undefined' ? window.location.origin : undefined }
+      });
+      if (error) throw error;
+      setForgotOtpSent(true);
+      setForgotTimer(60);
+      setForgotOtpValues(['', '', '', '', '', '']);
+      setTimeout(() => forgotOtpRefs.current[0]?.focus(), 100);
+    } catch (err: unknown) {
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to send reset code.');
+    } finally {
+      setIsSendingForgotOtp(false);
+    }
+  };
+
+  const handleResetPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage(null);
+    const token = forgotOtpValues.join('');
+    if (token.length < 6) {
+      setErrorMessage('Please enter 6-digit code received on your Gmail.');
+      return;
+    }
+    if (!forgotNewPassword || forgotNewPassword.length < 6) {
+      setErrorMessage('New password must be at least 6 characters.');
+      return;
+    }
+    if (forgotNewPassword !== forgotConfirmPassword) {
+      setErrorMessage('Passwords do not match.');
+      return;
+    }
+
+    setIsResettingPass(true);
+    try {
+      const { error: verifyErr } = await supabase.auth.verifyOtp({
+        email: forgotEmail.trim().toLowerCase(),
+        token: token,
+        type: 'email'
+      });
+      if (verifyErr) throw new Error('Invalid verification code.');
+
+      const res = await sbResetShopPassword(forgotEmail.trim().toLowerCase(), forgotNewPassword);
+      if (!res.success) throw new Error(res.error || 'Failed to update password.');
+
+      setSuccessMessage('Password reset successfully! You can now sign in.');
+      setLoginEmail(forgotEmail.trim());
+      setLoginPassword(forgotNewPassword);
+      setTab('LOGIN');
+    } catch (err: unknown) {
+      setErrorMessage(err instanceof Error ? err.message : 'Password reset failed.');
+    } finally {
+      setIsResettingPass(false);
     }
   };
 
@@ -277,7 +343,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
             <UdhariLogo size={28} />
             <span style={{ fontWeight: 800, fontSize: '1.05rem', color: 'var(--text-primary)' }}>
-              {tab === 'LOGIN' ? 'Sign In to Udhari' : 'Register New Business'}
+              {tab === 'LOGIN' ? 'Sign In to Udhari' : tab === 'REGISTER' ? 'Register New Business' : 'Reset Password'}
             </span>
           </div>
           <button type="button" className="icon-btn" onClick={onClose}>
@@ -286,6 +352,25 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         </div>
 
         <div style={{ padding: '1.5rem' }}>
+          {successMessage && (
+            <div style={{
+              background: 'var(--color-credit-bg)',
+              border: '1px solid var(--color-credit-border)',
+              color: 'var(--color-credit)',
+              padding: '0.65rem 0.85rem',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: '0.82rem',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              marginBottom: '1rem'
+            }}>
+              <CheckCircle size={15} style={{ flexShrink: 0 }} />
+              <span>{successMessage}</span>
+            </div>
+          )}
+
           {errorMessage && (
             <div style={{
               background: 'var(--color-debit-bg)',
@@ -429,7 +514,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               )}
 
               <div className="form-group">
-                <label className="form-label">Password *</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                  <label className="form-label" style={{ margin: 0 }}>Password *</label>
+                  <button
+                    type="button"
+                    style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', padding: 0 }}
+                    onClick={() => {
+                      setTab('FORGOT_PASSWORD');
+                      setForgotEmail(loginEmail || email || '');
+                      setErrorMessage(null);
+                      setSuccessMessage(null);
+                    }}
+                  >
+                    Forgot password?
+                  </button>
+                </div>
                 <div style={{ position: 'relative' }}>
                   <input
                     type={showPassword ? 'text' : 'password'}
@@ -482,13 +581,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     textDecoration: 'underline',
                     padding: 0
                   }}
-                  onClick={() => { setTab('REGISTER'); setErrorMessage(null); }}
+                  onClick={() => { setTab('REGISTER'); setErrorMessage(null); setSuccessMessage(null); }}
                 >
                   Register business here →
                 </button>
               </div>
             </form>
-          ) : (
+          ) : tab === 'REGISTER' ? (
             <form onSubmit={handleRegisterSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div className="form-group">
                 <label className="form-label">Business Name *</label>
@@ -606,7 +705,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                               maxLength={1}
                               value={val}
                               onChange={(e) => handleOtpDigitChange(i, e.target.value)}
-                              onKeyDown={(e) => handleOtpKeyDown(i, e)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Backspace' && !otpValues[i] && i > 0) {
+                                  otpInputRefs.current[i - 1]?.focus();
+                                }
+                              }}
                               disabled={isVerifyingOtp}
                               style={{
                                 width: '34px',
@@ -764,11 +867,177 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     textDecoration: 'underline',
                     padding: 0
                   }}
-                  onClick={() => { setTab('LOGIN'); setErrorMessage(null); }}
+                  onClick={() => { setTab('LOGIN'); setErrorMessage(null); setSuccessMessage(null); }}
                 >
                   Sign in here →
                 </button>
               </div>
+            </form>
+          ) : (
+            /* ═══════════════════ 3. FORGOT PASSWORD FORM ═══════════════════ */
+            <form onSubmit={handleResetPasswordSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <button
+                type="button"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-secondary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  padding: 0
+                }}
+                onClick={() => { setTab('LOGIN'); setErrorMessage(null); setSuccessMessage(null); }}
+              >
+                <ArrowLeft size={13} /> Back to Sign In
+              </button>
+
+              <div className="form-group">
+                <label className="form-label">Registered Gmail / Email Address *</label>
+                <div style={{ display: 'flex', gap: '0.4rem' }}>
+                  <input
+                    type="email"
+                    className="form-input"
+                    placeholder="e.g. yourshop@gmail.com"
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                    required
+                    disabled={forgotOtpSent}
+                    style={{ flex: 1 }}
+                  />
+                  {!forgotOtpSent && (
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={handleSendForgotOtp}
+                      disabled={isSendingForgotOtp}
+                      style={{ fontSize: '0.78rem', padding: '0.4rem 0.75rem', fontWeight: 700, whiteSpace: 'nowrap' }}
+                    >
+                      {isSendingForgotOtp ? 'Sending...' : 'Send OTP'}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {forgotOtpSent && (
+                <>
+                  <div style={{
+                    background: 'var(--bg-surface-elevated)',
+                    border: '1px solid var(--border-medium)',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '0.75rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.5rem'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                        Enter 6-digit code:
+                      </span>
+                      {forgotTimer > 0 ? (
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                          Resend in {forgotTimer}s
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleSendForgotOtp}
+                          style={{ background: 'none', border: 'none', color: 'var(--btn-primary-bg)', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer' }}
+                        >
+                          Resend Code
+                        </button>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'center' }}>
+                      {forgotOtpValues.map((val, i) => (
+                        <input
+                          key={i}
+                          ref={(el) => { forgotOtpRefs.current[i] = el; }}
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={1}
+                          value={val}
+                          onChange={(e) => {
+                            const digit = e.target.value.replace(/\D/g, '').slice(-1);
+                            const newVals = [...forgotOtpValues];
+                            newVals[i] = digit;
+                            setForgotOtpValues(newVals);
+                            if (digit && i < 5) forgotOtpRefs.current[i + 1]?.focus();
+                          }}
+                          style={{
+                            width: '34px',
+                            height: '40px',
+                            textAlign: 'center',
+                            fontSize: '1.1rem',
+                            fontWeight: 700,
+                            border: '1.5px solid var(--border-medium)',
+                            borderRadius: 'var(--radius-xs)',
+                            background: 'var(--bg-surface)',
+                            color: 'var(--text-primary)',
+                            outline: 'none'
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Create New Password *</label>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type={showForgotPass ? 'text' : 'password'}
+                        className="form-input"
+                        placeholder="At least 6 characters"
+                        value={forgotNewPassword}
+                        onChange={(e) => setForgotNewPassword(e.target.value)}
+                        required
+                        style={{ width: '100%', paddingRight: '2.5rem' }}
+                      />
+                      <button
+                        type="button"
+                        style={{
+                          position: 'absolute',
+                          right: '0.75rem',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'var(--text-muted)',
+                          cursor: 'pointer'
+                        }}
+                        onClick={() => setShowForgotPass(!showForgotPass)}
+                      >
+                        {showForgotPass ? <EyeOff size={15} /> : <Eye size={15} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Confirm New Password *</label>
+                    <input
+                      type={showForgotPass ? 'text' : 'password'}
+                      className="form-input"
+                      placeholder="Repeat new password"
+                      value={forgotConfirmPassword}
+                      onChange={(e) => setForgotConfirmPassword(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    style={{ width: '100%', minHeight: '42px', marginTop: '0.25rem', fontWeight: 700 }}
+                    disabled={isResettingPass}
+                  >
+                    <KeyRound size={15} />
+                    <span>{isResettingPass ? 'Saving...' : 'Save New Password & Sign In'}</span>
+                  </button>
+                </>
+              )}
             </form>
           )}
         </div>

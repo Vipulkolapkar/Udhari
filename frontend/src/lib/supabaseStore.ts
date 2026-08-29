@@ -130,6 +130,32 @@ export async function sbLoginWithPhone(identifier: string): Promise<ShopUser | n
   return res.user;
 }
 
+export async function sbResetShopPassword(email: string, newPassword: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const cleanEmail = email.trim().toLowerCase();
+    const { data: shops, error: findError } = await supabase
+      .from('shops')
+      .select('id, email')
+      .ilike('email', cleanEmail)
+      .limit(1);
+
+    if (findError) return { success: false, error: findError.message };
+    if (!shops || shops.length === 0) {
+      return { success: false, error: `No business account found with email ${cleanEmail}.` };
+    }
+
+    const { error: updateError } = await supabase
+      .from('shops')
+      .update({ password: newPassword })
+      .eq('id', shops[0].id);
+
+    if (updateError) return { success: false, error: updateError.message };
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Failed to update password.' };
+  }
+}
+
 export async function sbUpdateShop(shopId: string, updates: Partial<ShopUser>): Promise<ShopUser | null> {
   const { data, error } = await supabase.from('shops').update(updates).eq('id', shopId).select().single();
   if (error) { console.error('sbUpdateShop:', error); return null; }

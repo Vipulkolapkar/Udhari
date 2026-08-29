@@ -13,18 +13,21 @@ import {
   Send,
   RefreshCw,
   Mail,
-  Phone
+  Phone,
+  ArrowLeft,
+  KeyRound
 } from 'lucide-react';
 import { ShopUser, ShopCategory, Language, ThemeMode } from '../types';
 import { getTranslation, categoryLabels } from '../lib/translations';
 import { UdhariLogo } from './UdhariLogo';
 import { supabase } from '../lib/supabase';
+import { sbResetShopPassword } from '../lib/supabaseStore';
 
 interface AuthScreenProps {
   language: Language;
   theme: ThemeMode;
   existingShops: ShopUser[];
-  initialTab?: 'LOGIN' | 'REGISTER';
+  initialTab?: 'LOGIN' | 'REGISTER' | 'FORGOT_PASSWORD';
   initialEmail?: string;
   initialOwnerName?: string;
   initialEmailVerified?: boolean;
@@ -58,7 +61,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   onRegister
 }) => {
   const t = getTranslation(language);
-  const [tab, setTab] = useState<'LOGIN' | 'REGISTER'>(initialTab);
+  const [tab, setTab] = useState<'LOGIN' | 'REGISTER' | 'FORGOT_PASSWORD'>(initialTab);
 
   // ─── Sign In State ────────────────────────────────────────────────
   const [loginMethod, setLoginMethod] = useState<'EMAIL' | 'PHONE'>('EMAIL');
@@ -82,16 +85,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const [gstin, setGstin] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // ─── Inline Email OTP State ───────────────────────────────────────
+  // ─── Inline Email OTP State (Registration) ────────────────────────
   const [isEmailVerified, setIsEmailVerified] = useState(initialEmailVerified);
-
-  useEffect(() => {
-    if (initialTab) setTab(initialTab);
-    if (initialEmail) setEmail(initialEmail);
-    if (initialOwnerName) setOwnerName(initialOwnerName);
-    if (initialEmailVerified !== undefined) setIsEmailVerified(initialEmailVerified);
-  }, [initialTab, initialEmail, initialOwnerName, initialEmailVerified]);
   const [isSendingOtp, setIsSendingOtp] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [otpValues, setOtpValues] = useState<string[]>(['', '', '', '', '', '']);
@@ -101,12 +98,37 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const emailInputRef = useRef<HTMLInputElement>(null);
   const otpInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  // Timer countdown
+  // ─── Forgot Password State ────────────────────────────────────────
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotOtpSent, setForgotOtpSent] = useState(false);
+  const [forgotOtpValues, setForgotOtpValues] = useState<string[]>(['', '', '', '', '', '']);
+  const [forgotTimer, setForgotTimer] = useState(60);
+  const [forgotNewPassword, setForgotNewPassword] = useState('');
+  const [forgotConfirmPassword, setForgotConfirmPassword] = useState('');
+  const [showForgotPass, setShowForgotPass] = useState(false);
+  const [isSendingForgotOtp, setIsSendingForgotOtp] = useState(false);
+  const [isResettingPass, setIsResettingPass] = useState(false);
+  const forgotOtpRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  useEffect(() => {
+    if (initialTab) setTab(initialTab);
+    if (initialEmail) setEmail(initialEmail);
+    if (initialOwnerName) setOwnerName(initialOwnerName);
+    if (initialEmailVerified !== undefined) setIsEmailVerified(initialEmailVerified);
+  }, [initialTab, initialEmail, initialOwnerName, initialEmailVerified]);
+
+  // Timer countdowns
   useEffect(() => {
     if (otpTimer <= 0 || !otpSent) return;
     const interval = setInterval(() => setOtpTimer((prev) => prev - 1), 1000);
     return () => clearInterval(interval);
   }, [otpTimer, otpSent]);
+
+  useEffect(() => {
+    if (forgotTimer <= 0 || !forgotOtpSent) return;
+    const interval = setInterval(() => setForgotTimer((prev) => prev - 1), 1000);
+    return () => clearInterval(interval);
+  }, [forgotTimer, forgotOtpSent]);
 
   // Real-time listener for magic link / confirmation email click
   useEffect(() => {
@@ -126,7 +148,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
     };
   }, [otpSent, email, isEmailVerified]);
 
-  // Send Email Verification Code
+  // Send Email Verification Code (Registration)
   const handleSendEmailOtp = async () => {
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
@@ -160,7 +182,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
     }
   };
 
-  // Verify 6-digit Code
+  // Verify Registration Code
   const handleVerifyCode = async (code: string) => {
     setIsVerifyingOtp(true);
     setOtpError(null);
@@ -213,6 +235,99 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
     }
   };
 
+  // ─── Forgot Password Handlers ─────────────────────────────────────
+  const handleSendForgotOtp = async () => {
+    const cleanEmail = forgotEmail.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      setErrorMessage('Please enter your registered email address.');
+      return;
+    }
+
+    setIsSendingForgotOtp(true);
+    setErrorMessage(null);
+
+    try {
+      await supabase.auth.signOut().catch(() => {});
+      const { error } = await supabase.auth.signInWithOtp({
+        email: cleanEmail,
+        options: {
+          emailRedirectTo: typeof window !== 'undefined' ? window.location.origin : undefined
+        }
+      });
+      if (error) throw error;
+
+      setForgotOtpSent(true);
+      setForgotTimer(60);
+      setForgotOtpValues(['', '', '', '', '', '']);
+      setTimeout(() => forgotOtpRefs.current[0]?.focus(), 100);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to send password reset OTP.';
+      setErrorMessage(msg);
+    } finally {
+      setIsSendingForgotOtp(false);
+    }
+  };
+
+  const handleForgotOtpChange = (index: number, val: string) => {
+    const digit = val.replace(/\D/g, '').slice(-1);
+    const newValues = [...forgotOtpValues];
+    newValues[index] = digit;
+    setForgotOtpValues(newValues);
+
+    if (digit && index < 5) {
+      forgotOtpRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleResetPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage(null);
+
+    const token = forgotOtpValues.join('');
+    if (token.length < 6) {
+      setErrorMessage('Please enter the 6-digit code received on your Gmail.');
+      return;
+    }
+    if (!forgotNewPassword || forgotNewPassword.length < 6) {
+      setErrorMessage('New password must be at least 6 characters.');
+      return;
+    }
+    if (forgotNewPassword !== forgotConfirmPassword) {
+      setErrorMessage('Passwords do not match. Please verify.');
+      return;
+    }
+
+    setIsResettingPass(true);
+    try {
+      // 1. Verify OTP token
+      const { error: verifyErr } = await supabase.auth.verifyOtp({
+        email: forgotEmail.trim().toLowerCase(),
+        token: token,
+        type: 'email'
+      });
+      if (verifyErr) {
+        throw new Error('Invalid verification code. Please check your Gmail.');
+      }
+
+      // 2. Update Shop password in DB
+      const res = await sbResetShopPassword(forgotEmail.trim().toLowerCase(), forgotNewPassword);
+      if (!res.success) {
+        throw new Error(res.error || 'Failed to update password.');
+      }
+
+      // 3. Success! Route to Sign In
+      setSuccessMessage('Password reset successfully! Please sign in with your new password.');
+      setLoginEmail(forgotEmail.trim());
+      setLoginPassword(forgotNewPassword);
+      setTab('LOGIN');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Password reset failed.';
+      setErrorMessage(msg);
+    } finally {
+      setIsResettingPass(false);
+    }
+  };
+
   // ─── Google OAuth 2.0 Handler ──────────────────────────────────────
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true);
@@ -236,6 +351,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
+    setSuccessMessage(null);
 
     const identifier = loginMethod === 'EMAIL' ? loginEmail.trim() : loginPhone.trim();
     if (!identifier) {
@@ -264,6 +380,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const handleRegisterSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
+    setSuccessMessage(null);
 
     if (!shopName.trim()) {
       setErrorMessage('Please enter Business Name.');
@@ -347,17 +464,17 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           </div>
           <div style={{ minWidth: 0 }}>
             <h1 style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em', margin: 0 }}>
-              {tab === 'LOGIN' ? 'Sign In to Udhari' : 'Register Your Business'}
+              {tab === 'LOGIN' ? 'Sign In to Udhari' : tab === 'REGISTER' ? 'Register Your Business' : 'Reset Password'}
             </h1>
             <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: '0.2rem', margin: 0 }}>
-              {tab === 'LOGIN' ? 'Access your customer credit ledger' : 'Create an account for your shop'}
+              {tab === 'LOGIN' ? 'Access your customer credit ledger' : tab === 'REGISTER' ? 'Create an account for your shop' : 'Send verification code to your Gmail'}
             </p>
           </div>
         </div>
 
         {/* Form Body */}
         <div style={{ padding: '1.75rem' }}>
-          {/* Google Verified / Info Banner */}
+          {/* Info Banner */}
           {infoBanner && (
             <div style={{
               background: 'rgba(37, 99, 235, 0.08)',
@@ -371,6 +488,26 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               marginBottom: '1.25rem'
             }}>
               {infoBanner}
+            </div>
+          )}
+
+          {/* Success Alert Box */}
+          {successMessage && (
+            <div style={{
+              background: 'var(--color-credit-bg)',
+              border: '1.5px solid var(--color-credit-border)',
+              color: 'var(--color-credit)',
+              padding: '0.75rem 1rem',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              marginBottom: '1.25rem'
+            }}>
+              <CheckCircle size={16} style={{ flexShrink: 0 }} />
+              <span>{successMessage}</span>
             </div>
           )}
 
@@ -394,7 +531,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             </div>
           )}
 
-          {/* ═══════════════════ SIGN IN FORM ═══════════════════ */}
+          {/* ═══════════════════ 1. SIGN IN FORM ═══════════════════ */}
           {tab === 'LOGIN' ? (
             <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
               
@@ -439,7 +576,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                 <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
               </div>
 
-              {/* Compact Sleek Switcher between Email & Mobile */}
+              {/* Switcher between Email & Mobile */}
               <div style={{
                 display: 'inline-flex',
                 alignSelf: 'center',
@@ -496,9 +633,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               {/* Identifier Input */}
               {loginMethod === 'EMAIL' ? (
                 <div className="form-group">
-                  <label className="form-label">
-                    Email Address *
-                  </label>
+                  <label className="form-label">Email Address *</label>
                   <input
                     type="email"
                     className="form-input"
@@ -511,9 +646,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                 </div>
               ) : (
                 <div className="form-group">
-                  <label className="form-label">
-                    Mobile Number *
-                  </label>
+                  <label className="form-label">Mobile Number *</label>
                   <input
                     type="tel"
                     className="form-input"
@@ -526,11 +659,32 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                 </div>
               )}
 
-              {/* Password Input (Mandatory) */}
+              {/* Password Input (with Forgot Password Link) */}
               <div className="form-group">
-                <label className="form-label">
-                  Password *
-                </label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                  <label className="form-label" style={{ margin: 0 }}>Password *</label>
+                  <button
+                    type="button"
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--text-secondary)',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      padding: 0
+                    }}
+                    onClick={() => {
+                      setTab('FORGOT_PASSWORD');
+                      setForgotEmail(loginEmail || email || '');
+                      setErrorMessage(null);
+                      setSuccessMessage(null);
+                    }}
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+
                 <div style={{ position: 'relative' }}>
                   <input
                     type={showPassword ? 'text' : 'password'}
@@ -590,21 +744,20 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                   onClick={() => {
                     setTab('REGISTER');
                     setErrorMessage(null);
+                    setSuccessMessage(null);
                   }}
                 >
                   Register your business here →
                 </button>
               </div>
             </form>
-          ) : (
-            /* ═══════════════════ REGISTRATION FORM (SINGLE COLUMN) ═══════════════════ */
+          ) : tab === 'REGISTER' ? (
+            /* ═══════════════════ 2. REGISTRATION FORM ═══════════════════ */
             <form onSubmit={handleRegisterSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
               
               {/* 1. Business Name */}
               <div className="form-group">
-                <label className="form-label">
-                  Business / Shop Name *
-                </label>
+                <label className="form-label">Business / Shop Name *</label>
                 <input
                   type="text"
                   className="form-input"
@@ -618,9 +771,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
               {/* 2. Owner Name */}
               <div className="form-group">
-                <label className="form-label">
-                  Owner / Proprietor Name *
-                </label>
+                <label className="form-label">Owner / Proprietor Name *</label>
                 <input
                   type="text"
                   className="form-input"
@@ -633,9 +784,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
               {/* 3. Mobile Number */}
               <div className="form-group">
-                <label className="form-label">
-                  Mobile Number *
-                </label>
+                <label className="form-label">Mobile Number *</label>
                 <input
                   type="tel"
                   className="form-input"
@@ -649,9 +798,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               {/* 4. Email Address with IN-LINE Verification */}
               <div className="form-group">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                  <label className="form-label" style={{ margin: 0 }}>
-                    Email Address *
-                  </label>
+                  <label className="form-label" style={{ margin: 0 }}>Email Address *</label>
                   {isEmailVerified ? (
                     <span style={{ fontSize: '0.78rem', color: 'var(--color-credit)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '3px' }}>
                       <CheckCircle size={13} /> Verified
@@ -675,7 +822,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                   required
                 />
 
-                {/* Inline OTP Section */}
                 {!isEmailVerified && (
                   <div style={{
                     marginTop: '0.65rem',
@@ -704,7 +850,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                            Enter 6-digit code (or click link in email):
+                            Enter 6-digit code:
                           </span>
                           {otpTimer > 0 ? (
                             <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
@@ -777,11 +923,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                 )}
               </div>
 
-              {/* 5. Password (Mandatory) */}
+              {/* 5. Password */}
               <div className="form-group">
-                <label className="form-label">
-                  Create Password *
-                </label>
+                <label className="form-label">Create Password *</label>
                 <div style={{ position: 'relative' }}>
                   <input
                     type={showRegPassword ? 'text' : 'password'}
@@ -814,9 +958,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
               {/* 6. Business Category */}
               <div className="form-group">
-                <label className="form-label">
-                  Business Category *
-                </label>
+                <label className="form-label">Business Category *</label>
                 <select
                   className="form-select"
                   value={category}
@@ -832,12 +974,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                 </select>
               </div>
 
-              {/* 7. Custom Category Input (Appears if OTHER selected) */}
               {category === 'OTHER' && (
                 <div className="form-group">
-                  <label className="form-label">
-                    Specify Business Type *
-                  </label>
+                  <label className="form-label">Specify Business Type *</label>
                   <input
                     type="text"
                     className="form-input"
@@ -850,11 +989,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                 </div>
               )}
 
-              {/* 8. Address & City (Optional) */}
+              {/* 8. Address */}
               <div className="form-group">
-                <label className="form-label">
-                  Business Address & City (Optional)
-                </label>
+                <label className="form-label">Business Address & City (Optional)</label>
                 <input
                   type="text"
                   className="form-input"
@@ -864,11 +1001,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                 />
               </div>
 
-              {/* 9. GSTIN (Optional) */}
+              {/* 9. GSTIN */}
               <div className="form-group">
-                <label className="form-label">
-                  GSTIN / Trade License No. (Optional)
-                </label>
+                <label className="form-label">GSTIN / Trade License No. (Optional)</label>
                 <input
                   type="text"
                   className="form-input"
@@ -878,7 +1013,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                 />
               </div>
 
-              {/* 10. Terms Agreement */}
+              {/* Terms */}
               <div style={{
                 background: 'var(--bg-surface-elevated)',
                 border: '1px solid var(--border-subtle)',
@@ -947,11 +1082,197 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                   onClick={() => {
                     setTab('LOGIN');
                     setErrorMessage(null);
+                    setSuccessMessage(null);
                   }}
                 >
                   Sign in here →
                 </button>
               </div>
+            </form>
+          ) : (
+            /* ═══════════════════ 3. FORGOT PASSWORD FORM ═══════════════════ */
+            <form onSubmit={handleResetPasswordSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
+              
+              {/* Back button */}
+              <button
+                type="button"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-secondary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  padding: 0,
+                  marginBottom: '0.25rem'
+                }}
+                onClick={() => {
+                  setTab('LOGIN');
+                  setErrorMessage(null);
+                  setSuccessMessage(null);
+                }}
+              >
+                <ArrowLeft size={14} /> Back to Sign In
+              </button>
+
+              {/* Registered Email */}
+              <div className="form-group">
+                <label className="form-label">Registered Gmail / Email Address *</label>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <input
+                    type="email"
+                    className="form-input"
+                    placeholder="e.g. yourshop@gmail.com"
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                    required
+                    autoFocus
+                    disabled={forgotOtpSent}
+                    style={{ flex: 1 }}
+                  />
+                  {!forgotOtpSent && (
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={handleSendForgotOtp}
+                      disabled={isSendingForgotOtp}
+                      style={{ fontSize: '0.82rem', padding: '0.5rem 0.95rem', fontWeight: 700, whiteSpace: 'nowrap' }}
+                    >
+                      {isSendingForgotOtp ? 'Sending...' : 'Send OTP'}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Step 2: Once OTP is sent */}
+              {forgotOtpSent && (
+                <>
+                  <div style={{
+                    background: 'var(--bg-surface-elevated)',
+                    border: '1px solid var(--border-medium)',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '0.85rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.65rem'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                        Enter 6-digit code sent to Gmail:
+                      </span>
+                      {forgotTimer > 0 ? (
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                          Resend in <strong>{forgotTimer}s</strong>
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleSendForgotOtp}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--btn-primary-bg)',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Resend Code
+                        </button>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
+                      {forgotOtpValues.map((val, i) => (
+                        <input
+                          key={i}
+                          ref={(el) => { forgotOtpRefs.current[i] = el; }}
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={1}
+                          value={val}
+                          onChange={(e) => handleForgotOtpChange(i, e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Backspace' && !forgotOtpValues[i] && i > 0) {
+                              forgotOtpRefs.current[i - 1]?.focus();
+                            }
+                          }}
+                          style={{
+                            width: '38px',
+                            height: '44px',
+                            textAlign: 'center',
+                            fontSize: '1.2rem',
+                            fontWeight: 700,
+                            border: '1.5px solid var(--border-medium)',
+                            borderRadius: 'var(--radius-xs)',
+                            background: 'var(--bg-surface)',
+                            color: 'var(--text-primary)',
+                            outline: 'none'
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* New Password */}
+                  <div className="form-group">
+                    <label className="form-label">Create New Password *</label>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type={showForgotPass ? 'text' : 'password'}
+                        className="form-input"
+                        placeholder="At least 6 characters"
+                        value={forgotNewPassword}
+                        onChange={(e) => setForgotNewPassword(e.target.value)}
+                        required
+                        style={{ width: '100%', paddingRight: '2.5rem' }}
+                      />
+                      <button
+                        type="button"
+                        style={{
+                          position: 'absolute',
+                          right: '0.75rem',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'var(--text-muted)',
+                          cursor: 'pointer'
+                        }}
+                        onClick={() => setShowForgotPass(!showForgotPass)}
+                      >
+                        {showForgotPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Confirm New Password */}
+                  <div className="form-group">
+                    <label className="form-label">Confirm New Password *</label>
+                    <input
+                      type={showForgotPass ? 'text' : 'password'}
+                      className="form-input"
+                      placeholder="Repeat new password"
+                      value={forgotConfirmPassword}
+                      onChange={(e) => setForgotConfirmPassword(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    style={{ width: '100%', minHeight: '44px', fontSize: '0.95rem', fontWeight: 700, marginTop: '0.35rem' }}
+                    disabled={isResettingPass}
+                  >
+                    <KeyRound size={16} />
+                    <span>{isResettingPass ? 'Resetting Password...' : 'Save New Password & Sign In'}</span>
+                  </button>
+                </>
+              )}
             </form>
           )}
         </div>
