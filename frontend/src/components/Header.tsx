@@ -22,10 +22,12 @@ export const Header: React.FC<HeaderProps> = ({
   const t = getTranslation(language);
 
   // Format today's date nicely in selected locale
-  const todayFormatted = new Date().toLocaleDateString(
-    language === 'mr' ? 'mr-IN' : language === 'hi' ? 'hi-IN' : 'en-IN',
-    { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }
-  );
+  const todayFormatted = new Date().toLocaleDateString('en-IN', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric'
+  });
 
   return (
     <header
@@ -41,8 +43,8 @@ export const Header: React.FC<HeaderProps> = ({
         gap: '1rem'
       }}
     >
-      {/* Front Page Top Left Corner: Large Udhari Brand & Clean Store Details */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', minWidth: 0 }}>
+      {/* Front Page Top Left: Udhari Logo + Clean Shop Name */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
           <UdhariLogo size={46} />
         </div>
@@ -50,44 +52,23 @@ export const Header: React.FC<HeaderProps> = ({
         <div style={{ minWidth: 0 }}>
           <h1
             style={{
-              fontSize: '2.15rem',
+              fontSize: '1.85rem',
               fontWeight: 900,
               color: 'var(--text-primary)',
-              letterSpacing: '-0.04em',
-              lineHeight: 1.1,
+              letterSpacing: '-0.03em',
+              lineHeight: 1.15,
               margin: 0,
               fontFamily: 'var(--font-primary)'
             }}
           >
-            Udhari
+            {currentShop ? currentShop.shop_name : 'Udhari'}
           </h1>
-
-          {/* Clean Active Shop Subtitle */}
-          <p
-            style={{
-              fontSize: '0.86rem',
-              color: 'var(--text-muted)',
-              marginTop: '0.3rem',
-              margin: 0,
-              fontWeight: 500
-            }}
-          >
-            {currentShop ? (
-              <span>
-                <strong style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{currentShop.shop_name}</strong>
-                {' • '}{currentShop.owner_name}
-                {currentShop.address ? ` • 📍 ${currentShop.address}` : ''}
-              </span>
-            ) : (
-              t.defaultShopSubtitle
-            )}
-          </p>
         </div>
       </div>
 
       {/* Front Page Top Right: + Add Customer, Voice Entry & Live Date */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
-        {/* Prominent Add Customer Button on Front Page */}
+        {/* Prominent Add Customer Button */}
         {onAddCustomerClick && (
           <button
             type="button"
@@ -106,7 +87,7 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         )}
 
-        {/* Prominent Voice Entry Button on Front Page */}
+        {/* Voice Entry Button */}
         {onVoiceBillClick && (
           <button
             type="button"

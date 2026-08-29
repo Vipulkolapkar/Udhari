@@ -62,6 +62,7 @@ export default function Home() {
     active_debtors_count: 0
   });
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchMode, setSearchMode] = useState<'NAME' | 'PHONE'>('NAME');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -193,15 +194,19 @@ export default function Home() {
     if (!searchQuery.trim()) {
       return [...customers].sort((a, b) => b.current_balance - a.current_balance);
     }
-    const q = searchQuery.toLowerCase().trim().replace(/\D/g, '');
     const qText = searchQuery.toLowerCase().trim();
+    const qDigits = searchQuery.trim().replace(/\D/g, '');
+
     return customers.filter((c) => {
-      const matchPhone = q ? c.phone?.includes(q) : false;
-      const matchName = c.name.toLowerCase().includes(qText);
-      const matchLandmark = c.address_landmark?.toLowerCase().includes(qText);
-      return matchPhone || matchName || matchLandmark;
+      if (searchMode === 'PHONE') {
+        return qDigits ? c.phone?.includes(qDigits) : c.phone?.toLowerCase().includes(qText);
+      } else {
+        const matchName = c.name.toLowerCase().includes(qText);
+        const matchLandmark = c.address_landmark?.toLowerCase().includes(qText);
+        return matchName || matchLandmark;
+      }
     });
-  }, [customers, searchQuery]);
+  }, [customers, searchQuery, searchMode]);
 
   // ─── Sidebar ──────────────────────────────────────────────────────
   const handleToggleSidebar = () => {
@@ -460,6 +465,8 @@ export default function Home() {
             <CustomerSearchBar
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
+              searchMode={searchMode}
+              onSearchModeChange={setSearchMode}
               language={language}
               onVoiceClick={() => setIsVoiceModalOpen(true)}
             />

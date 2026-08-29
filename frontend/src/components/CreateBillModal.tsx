@@ -109,9 +109,7 @@ export const CreateBillModal: React.FC<CreateBillModalProps> = ({
           <div className="modal-body">
             {/* Preset Items Chips */}
             <div className="form-group">
-              <label className="form-label">
-                <Tag size={13} style={{ display: 'inline', marginRight: '4px' }} />
-                {t.quickPresets}
+              <label className="form-label">{t.quickPresets}
               </label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
                 {presets.slice(0, 8).map((preset) => (
@@ -198,9 +196,7 @@ export const CreateBillModal: React.FC<CreateBillModalProps> = ({
             {/* Extra Metadata */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.85rem' }}>
               <div className="form-group">
-                <label className="form-label">
-                  <User size={13} style={{ display: 'inline', marginRight: '4px' }} />
-                  {t.takenBy}
+                <label className="form-label">{t.takenBy}
                 </label>
                 <input
                   type="text"
@@ -212,9 +208,7 @@ export const CreateBillModal: React.FC<CreateBillModalProps> = ({
               </div>
 
               <div className="form-group">
-                <label className="form-label">
-                  <Calendar size={13} style={{ display: 'inline', marginRight: '4px' }} />
-                  {t.dueDate}
+                <label className="form-label">{t.dueDate}
                 </label>
                 <input
                   type="date"

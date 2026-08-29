@@ -1,13 +1,17 @@
 'use client';
 
 import React, { useRef, useEffect } from 'react';
-import { Search, X, Mic } from 'lucide-react';
+import { Search, X, Mic, User, Phone } from 'lucide-react';
 import { Language } from '../types';
 import { getTranslation } from '../lib/translations';
+
+export type SearchMode = 'NAME' | 'PHONE';
 
 interface CustomerSearchBarProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
+  searchMode: SearchMode;
+  onSearchModeChange: (mode: SearchMode) => void;
   language: Language;
   onVoiceClick?: () => void;
 }
@@ -15,6 +19,8 @@ interface CustomerSearchBarProps {
 export const CustomerSearchBar: React.FC<CustomerSearchBarProps> = ({
   searchQuery,
   onSearchChange,
+  searchMode,
+  onSearchModeChange,
   language,
   onVoiceClick,
 }) => {
@@ -33,16 +39,83 @@ export const CustomerSearchBar: React.FC<CustomerSearchBarProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  const placeholderText = searchMode === 'NAME'
+    ? 'Search customer by full name...'
+    : 'Search customer by 10-digit mobile number...';
+
   return (
-    <div className="search-section">
+    <div className="search-section" style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+      {/* Switcher: Search by Name vs Mobile Number */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
+        <div style={{
+          display: 'inline-flex',
+          background: 'var(--bg-surface)',
+          border: '1px solid var(--border-medium)',
+          borderRadius: '9999px',
+          padding: '2px',
+          gap: '3px'
+        }}>
+          <button
+            type="button"
+            style={{
+              padding: '0.3rem 0.85rem',
+              fontSize: '0.78rem',
+              fontWeight: 700,
+              border: 'none',
+              borderRadius: '9999px',
+              background: searchMode === 'NAME' ? 'var(--btn-primary-bg)' : 'transparent',
+              color: searchMode === 'NAME' ? 'var(--btn-primary-text)' : 'var(--text-secondary)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              transition: 'all 0.15s ease'
+            }}
+            onClick={() => {
+              onSearchModeChange('NAME');
+              inputRef.current?.focus();
+            }}
+          >
+            <User size={13} />
+            <span>Search by Name</span>
+          </button>
+
+          <button
+            type="button"
+            style={{
+              padding: '0.3rem 0.85rem',
+              fontSize: '0.78rem',
+              fontWeight: 700,
+              border: 'none',
+              borderRadius: '9999px',
+              background: searchMode === 'PHONE' ? 'var(--btn-primary-bg)' : 'transparent',
+              color: searchMode === 'PHONE' ? 'var(--btn-primary-text)' : 'var(--text-secondary)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              transition: 'all 0.15s ease'
+            }}
+            onClick={() => {
+              onSearchModeChange('PHONE');
+              inputRef.current?.focus();
+            }}
+          >
+            <Phone size={13} />
+            <span>Search by Mobile No.</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Input Box */}
       <div className="search-input-wrapper" style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
         <Search size={18} className="search-icon-left" />
 
         <input
           ref={inputRef}
-          type="text"
+          type={searchMode === 'PHONE' ? 'tel' : 'text'}
           className="search-input"
-          placeholder={t.searchPlaceholder}
+          placeholder={placeholderText}
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
           autoComplete="off"
@@ -78,7 +151,7 @@ export const CustomerSearchBar: React.FC<CustomerSearchBarProps> = ({
             </button>
           )}
 
-          {/* Quick Mic trigger in search bar */}
+          {/* Quick Mic trigger */}
           {onVoiceClick && (
             <button
               type="button"

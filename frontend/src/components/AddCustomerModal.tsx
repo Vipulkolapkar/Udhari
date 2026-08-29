@@ -1,8 +1,9 @@
+'use client';
+
 import React, { useState } from 'react';
-import { X, UserPlus, Phone, MapPin, CheckCircle } from 'lucide-react';
+import { X, UserPlus } from 'lucide-react';
 import { Language } from '../types';
 import { getTranslation } from '../lib/translations';
-import { OtpVerificationModal } from './OtpVerificationModal';
 
 interface AddCustomerModalProps {
   language: Language;
@@ -25,8 +26,6 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [landmark, setLandmark] = useState('');
-  const [isPhoneVerified, setIsPhoneVerified] = useState(false);
-  const [showOtpModal, setShowOtpModal] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,7 +60,7 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
               <input
                 type="text"
                 className="form-input"
-                placeholder={language === 'mr' ? 'e.g. Ramesh ' : false ? 'e.g. Ramesh ' : 'e.g. John Doe'}
+                placeholder="e.g. Ramesh Sharma"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
@@ -71,43 +70,13 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
 
             {/* Mobile Number */}
             <div className="form-group">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
-                <label className="form-label" style={{ margin: 0 }}>
-                  <Phone size={13} style={{ display: 'inline', marginRight: '4px' }} />
-                  {t.phone} *
-                </label>
-                {isPhoneVerified ? (
-                  <span style={{ fontSize: '0.72rem', color: 'var(--color-credit)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '2px' }}>
-                    <CheckCircle size={12} /> Verified
-                  </span>
-                ) : phone.length >= 10 ? (
-                  <button
-                    type="button"
-                    style={{
-                      background: 'transparent',
-                      border: 'none',
-                      color: 'var(--text-primary)',
-                      fontSize: '0.72rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      textDecoration: 'underline',
-                      padding: 0
-                    }}
-                    onClick={() => setShowOtpModal(true)}
-                  >
-                    Verify with OTP
-                  </button>
-                ) : null}
-              </div>
+              <label className="form-label">{t.phone} *</label>
               <input
                 type="tel"
                 className="form-input"
-                placeholder="9822014589"
+                placeholder="e.g. 9822014589"
                 value={phone}
-                onChange={(e) => {
-                  setPhone(e.target.value);
-                  setIsPhoneVerified(false);
-                }}
+                onChange={(e) => setPhone(e.target.value)}
                 maxLength={13}
                 required
               />
@@ -115,14 +84,11 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
 
             {/* Address / Landmark */}
             <div className="form-group">
-              <label className="form-label">
-                <MapPin size={13} style={{ display: 'inline', marginRight: '4px' }} />
-                {t.landmarkLabel}
-              </label>
+              <label className="form-label">{t.landmarkLabel}</label>
               <input
                 type="text"
                 className="form-input"
-                placeholder={language === 'mr' ? '.  ,  ' : false ? '.  ,  ' : 'e.g. 123 Main Street'}
+                placeholder="e.g. Near Shivaji Chowk, Flat 202"
                 value={landmark}
                 onChange={(e) => setLandmark(e.target.value)}
               />
@@ -140,19 +106,6 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
           </div>
         </form>
       </div>
-
-      {/* OTP Verification Modal */}
-      {showOtpModal && (
-        <OtpVerificationModal
-          type="PHONE"
-          target={phone}
-          onClose={() => setShowOtpModal(false)}
-          onVerified={() => {
-            setIsPhoneVerified(true);
-            setShowOtpModal(false);
-          }}
-        />
-      )}
     </div>
   );
 };
