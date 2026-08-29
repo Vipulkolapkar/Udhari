@@ -34,13 +34,18 @@ export const CreateBillModal: React.FC<CreateBillModalProps> = ({
 }) => {
   const t = getTranslation(language);
 
+  // Default due date to 7 days from now
+  const defaultDueDate = React.useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    return d.toISOString().split('T')[0];
+  }, []);
+
   const [items, setItems] = useState<{ id: string; name: string; quantity: number; price: number }[]>([
     { id: '1', name: '', quantity: 1, price: 0 }
   ]);
-  const [takenBy, setTakenBy] = useState('');
-  const [notes, setNotes] = useState('');
-  const [dueDate, setDueDate] = useState('');
-  const [discountAmount, setDiscountAmount] = useState<number>(0);
+  const [takenBy, setTakenBy] = useState(customer.name || 'Self');
+  const [dueDate, setDueDate] = useState(defaultDueDate);
   const [advancePaid, setAdvancePaid] = useState<number | ''>('');
   const [advancePaymentMode, setAdvancePaymentMode] = useState<PaymentMode>('CASH');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -68,14 +73,13 @@ export const CreateBillModal: React.FC<CreateBillModalProps> = ({
     );
   };
 
-  const subtotal = items.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.price) || 0), 0);
-  const netTotal = Math.max(0, subtotal - (Number(discountAmount) || 0));
+  const netTotal = items.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.price) || 0), 0);
   const numAdvance = typeof advancePaid === 'number' ? advancePaid : 0;
   const remainingDueAdded = Math.max(0, netTotal - numAdvance);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (netTotal <= 0 || isSubmitting) return;
+    if (netTotal <= 0 || !takenBy.trim() || !dueDate || isSubmitting) return;
 
     setIsSubmitting(true);
     const formattedItems: InvoiceItem[] = items.map((item) => ({
@@ -91,10 +95,9 @@ export const CreateBillModal: React.FC<CreateBillModalProps> = ({
       await onSubmit(customer.id, {
         items: formattedItems,
         total_amount: netTotal,
-        discount_amount: Number(discountAmount) || 0,
-        taken_by_name: takenBy.trim() || undefined,
-        notes: notes.trim() || undefined,
-        due_date: dueDate || undefined,
+        discount_amount: 0,
+        taken_by_name: takenBy.trim(),
+        due_date: dueDate,
         advance_paid: numAdvance > 0 ? numAdvance : undefined,
         advance_payment_mode: numAdvance > 0 ? advancePaymentMode : undefined
       });
@@ -105,10 +108,10 @@ export const CreateBillModal: React.FC<CreateBillModalProps> = ({
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content large" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px', width: '100%' }}>
+      <div className="modal-content large" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '560px', width: '100%' }}>
         <div className="modal-header">
           <div className="modal-title">
-            <ShoppingBag size={18} color="var(--text-primary)" />
+            <ShoppingBag size={18} />
             <span>Give Credit — {customer.name}</span>
           </div>
           <button type="button" className="icon-btn" onClick={onClose} disabled={isSubmitting}>
@@ -120,51 +123,35 @@ export const CreateBillModal: React.FC<CreateBillModalProps> = ({
           <div className="modal-body">
             {/* Items Table */}
             <div className="form-group">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.45rem' }}>
-                <label className="form-label" style={{ margin: 0 }}>Items / Products *</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                <label className="form-label" style={{ margin: 0 }}>Items *</label>
                 <button
                   type="button"
                   className="btn btn-outline"
-                  style={{ minHeight: '28px', padding: '0.2rem 0.65rem', fontSize: '0.78rem', fontWeight: 600 }}
+                  style={{ minHeight: '26px', padding: '0.15rem 0.55rem', fontSize: '0.75rem', fontWeight: 600 }}
                   onClick={() => addItemRow('', 0, 1)}
                   disabled={isSubmitting}
                 >
-                  <Plus size={13} /> Add Item
+                  <Plus size={12} /> Add Row
                 </button>
               </div>
 
-              {/* Table Column Headers */}
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 75px 85px 36px',
-                gap: '0.4rem',
-                padding: '0.3rem 0.2rem',
-                fontSize: '0.75rem',
-                fontWeight: 700,
-                color: 'var(--text-secondary)'
-              }}>
-                <span>Item Name</span>
-                <span>Qty</span>
-                <span>Rate (₹)</span>
-                <span></span>
-              </div>
-
               {/* Rows */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                 {items.map((item) => (
                   <div
                     key={item.id}
                     style={{
                       display: 'grid',
-                      gridTemplateColumns: '1fr 75px 85px 36px',
-                      gap: '0.4rem',
+                      gridTemplateColumns: '1fr 70px 80px 32px',
+                      gap: '0.35rem',
                       alignItems: 'center'
                     }}
                   >
                     <input
                       type="text"
                       className="form-input"
-                      placeholder="e.g. Rice 5kg / Sugar"
+                      placeholder="Item name"
                       value={item.name}
                       onChange={(e) => updateItem(item.id, 'name', e.target.value)}
                       disabled={isSubmitting}
@@ -174,7 +161,7 @@ export const CreateBillModal: React.FC<CreateBillModalProps> = ({
                       type="number"
                       min="1"
                       className="form-input"
-                      placeholder="1"
+                      placeholder="Qty"
                       value={item.quantity}
                       onChange={(e) => updateItem(item.id, 'quantity', Math.max(1, Number(e.target.value)))}
                       disabled={isSubmitting}
@@ -185,7 +172,7 @@ export const CreateBillModal: React.FC<CreateBillModalProps> = ({
                       min="0"
                       step="0.5"
                       className="form-input"
-                      placeholder="0"
+                      placeholder="Rate"
                       value={item.price || ''}
                       onChange={(e) => updateItem(item.id, 'price', Number(e.target.value))}
                       disabled={isSubmitting}
@@ -199,12 +186,40 @@ export const CreateBillModal: React.FC<CreateBillModalProps> = ({
                       onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; }}
                       onClick={() => removeItemRow(item.id)}
                       disabled={items.length <= 1 || isSubmitting}
-                      title="Remove Item"
+                      title="Remove"
                     >
-                      <Trash2 size={15} />
+                      <Trash2 size={14} />
                     </button>
                   </div>
                 ))}
+              </div>
+            </div>
+
+            {/* Mandatory Metadata: Taken By & Due Date */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginTop: '0.4rem' }}>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Taken By *</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="e.g. Self / Brother / Staff"
+                  value={takenBy}
+                  onChange={(e) => setTakenBy(e.target.value)}
+                  disabled={isSubmitting}
+                  required
+                />
+              </div>
+
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Due Date *</label>
+                <input
+                  type="date"
+                  className="form-input"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  disabled={isSubmitting}
+                  required
+                />
               </div>
             </div>
 
@@ -213,23 +228,18 @@ export const CreateBillModal: React.FC<CreateBillModalProps> = ({
               background: 'var(--bg-surface-elevated)',
               border: '1px solid var(--border-medium)',
               borderRadius: 'var(--radius-sm)',
-              padding: '0.9rem 1rem',
-              marginTop: '0.5rem'
+              padding: '0.75rem 0.85rem',
+              marginTop: '0.6rem'
             }}>
-              <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                <ArrowDownLeft size={15} color="var(--color-credit)" />
-                <span>Immediate Payment on Spot (Optional)</span>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: numAdvance > 0 ? '1fr 1fr' : '1fr', gap: '0.75rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: numAdvance > 0 ? '1fr 1fr' : '1fr', gap: '0.65rem' }}>
                 <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label" style={{ fontSize: '0.78rem' }}>Amount Paid on Spot (₹)</label>
+                  <label className="form-label" style={{ fontSize: '0.78rem' }}>Immediate Paid on Spot (₹)</label>
                   <input
                     type="number"
                     min="0"
                     max={netTotal}
                     className="form-input"
-                    placeholder="e.g. 500 (if paid partially now)"
+                    placeholder="0"
                     value={advancePaid}
                     onChange={(e) => setAdvancePaid(e.target.value === '' ? '' : Math.min(netTotal, Number(e.target.value)))}
                     disabled={isSubmitting}
@@ -246,64 +256,31 @@ export const CreateBillModal: React.FC<CreateBillModalProps> = ({
                       disabled={isSubmitting}
                     >
                       <option value="CASH">Cash</option>
-                      <option value="UPI_GPAY">Google Pay (GPay)</option>
+                      <option value="UPI_GPAY">Google Pay</option>
                       <option value="UPI_PHONEPE">PhonePe</option>
                       <option value="UPI_PAYTM">Paytm</option>
-                      <option value="BANK_TRANSFER">Bank Transfer</option>
+                      <option value="BANK_TRANSFER">Bank</option>
                     </select>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Extra Metadata: Taken By & Due Date */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.85rem', marginTop: '0.5rem' }}>
-              <div className="form-group">
-                <label className="form-label">Taken By (Optional)</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="e.g. Self, Brother, Staff..."
-                  value={takenBy}
-                  onChange={(e) => setTakenBy(e.target.value)}
-                  disabled={isSubmitting}
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Promised Due Date (Optional)</label>
-                <input
-                  type="date"
-                  className="form-input"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                  disabled={isSubmitting}
-                />
-              </div>
-            </div>
-
-            {/* Bill Summary & Net Credit Added */}
+            {/* Total Balance Added */}
             <div style={{
-              marginTop: '0.65rem',
+              marginTop: '0.6rem',
               background: 'var(--bg-surface-elevated)',
               border: '1px solid var(--border-medium)',
-              padding: '0.85rem 1.15rem',
+              padding: '0.75rem 1rem',
               borderRadius: 'var(--radius-sm)',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center'
             }}>
               <div>
-                <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                  Total Bill: <strong>₹{netTotal.toLocaleString('en-IN')}</strong>
-                  {numAdvance > 0 && <span> • Paid: <strong style={{ color: 'var(--color-credit)' }}>- ₹{numAdvance.toLocaleString('en-IN')}</strong></span>}
-                </div>
-                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '2px' }}>
-                  Remaining Credit to Add (Udhari):
-                </div>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Credit Added to Account</span>
               </div>
-
-              <div style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--color-debit)', fontFamily: 'var(--font-primary)' }}>
+              <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--color-debit)' }}>
                 ₹{remainingDueAdded.toLocaleString('en-IN')}
               </div>
             </div>
@@ -311,26 +288,21 @@ export const CreateBillModal: React.FC<CreateBillModalProps> = ({
 
           <div className="modal-footer">
             <button type="button" className="btn btn-outline" onClick={onClose} disabled={isSubmitting}>
-              {t.cancel}
+              Cancel
             </button>
             <button
               type="submit"
               className="btn btn-primary"
-              disabled={netTotal <= 0 || isSubmitting}
+              disabled={netTotal <= 0 || !takenBy.trim() || !dueDate || isSubmitting}
               style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontWeight: 700 }}
             >
               {isSubmitting ? (
                 <>
                   <Loader2 size={15} style={{ animation: 'spin 0.8s linear infinite' }} />
-                  <span>Saving Bill...</span>
+                  <span>Saving...</span>
                 </>
               ) : (
-                <>
-                  <Plus size={15} />
-                  <span>
-                    Save Bill {numAdvance > 0 ? `(₹${numAdvance} Paid, ₹${remainingDueAdded} Due)` : `(₹${netTotal.toLocaleString('en-IN')})`}
-                  </span>
-                </>
+                <span>Save Bill (₹{remainingDueAdded.toLocaleString('en-IN')})</span>
               )}
             </button>
           </div>
