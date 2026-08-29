@@ -3,8 +3,6 @@
 import React, { useState } from 'react';
 import {
   ArrowLeft,
-  AlertTriangle,
-  Trash2,
   Moon,
   Sun,
   Shield,
@@ -14,13 +12,12 @@ import {
   Download,
   FileSpreadsheet,
   FileJson,
-  CheckCircle2,
+  Trash2,
   Loader2
 } from 'lucide-react';
 import { ShopUser, Language, ThemeMode, Customer, Invoice, Payment } from '../types';
 import { getTranslation } from '../lib/translations';
-import { sbGetCustomers, sbGetInvoices, sbGetPayments,
-  sbWipeAllShopData } from '../lib/supabaseStore';
+import { sbGetCustomers, sbGetInvoices, sbGetPayments, sbWipeAllShopData } from '../lib/supabaseStore';
 
 interface SettingsViewProps {
   currentShop: ShopUser | null;
@@ -59,8 +56,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordMsg, setPasswordMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
+
+  // Export State
   const [isExportingJson, setIsExportingJson] = useState(false);
   const [isExportingCsv, setIsExportingCsv] = useState(false);
+
+  // Delete All Data State
   const [isDeleteAllModalOpen, setIsDeleteAllModalOpen] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -106,42 +107,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
   };
 
-  const handleDeleteAllData = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!currentShop) return;
-
-    // Check password if set
-    if (currentShop.password && deletePassword !== currentShop.password) {
-      setDeleteError('Incorrect password. Please enter your valid account password.');
-      return;
-    }
-
-    setIsDeletingAll(true);
-    setDeleteError(null);
-
-    try {
-      const ok = await sbWipeAllShopData(currentShop.id);
-      if (ok) {
-        setIsDeleteAllModalOpen(false);
-        setDeletePassword('');
-        onResetData();
-        alert('All customers, bills, and payment records have been deleted successfully.');
-      } else {
-        setDeleteError('Failed to wipe data. Please try again.');
-      }
-    } catch (err: any) {
-      setDeleteError(err.message || 'Error wiping data.');
-    } finally {
-      setIsDeletingAll(false);
-    }
-  };
-
   // 1. Export Complete JSON Backup
   const handleExportJSON = async () => {
     if (!currentShop) return;
     setIsExportingJson(true);
     try {
-      // Fetch freshest live data from Supabase Cloud
       const [liveCustomers, liveInvoices, livePayments] = await Promise.all([
         sbGetCustomers(currentShop.id),
         sbGetInvoices(currentShop.id),
@@ -168,14 +138,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       downloadAnchor.setAttribute('href', dataStr);
       downloadAnchor.setAttribute(
         'download',
-        `udhari_complete_backup_${(currentShop.shop_name || 'shop').replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.json`
+        `udhari_backup_${(currentShop.shop_name || 'shop').replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.json`
       );
       document.body.appendChild(downloadAnchor);
       downloadAnchor.click();
       downloadAnchor.remove();
     } catch (err) {
       console.error('Export error:', err);
-      alert('Failed to generate backup. Please check your internet connection.');
+      alert('Failed to generate backup. Please check your connection.');
     } finally {
       setIsExportingJson(false);
     }
@@ -229,6 +199,36 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       alert('Failed to generate CSV export.');
     } finally {
       setIsExportingCsv(false);
+    }
+  };
+
+  // 3. Delete All Data Handler (Password protected)
+  const handleDeleteAllData = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentShop) return;
+
+    if (currentShop.password && deletePassword !== currentShop.password) {
+      setDeleteError('Incorrect password. Please enter your valid password to proceed.');
+      return;
+    }
+
+    setIsDeletingAll(true);
+    setDeleteError(null);
+
+    try {
+      const ok = await sbWipeAllShopData(currentShop.id);
+      if (ok) {
+        setIsDeleteAllModalOpen(false);
+        setDeletePassword('');
+        onResetData();
+        alert('All customers, bills, and payment records have been deleted.');
+      } else {
+        setDeleteError('Failed to delete data. Please try again.');
+      }
+    } catch (err: any) {
+      setDeleteError(err.message || 'Error deleting data.');
+    } finally {
+      setIsDeletingAll(false);
     }
   };
 
@@ -516,7 +516,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   Data Management & Export
                 </h3>
                 <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0 }}>
-                  Download complete backups and spreadsheet ledger statements from your live database
+                  Download complete backups or delete all customer and ledger records
                 </p>
               </div>
 
@@ -534,10 +534,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <div>
                   <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.94rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
                     <FileJson size={17} color="var(--text-primary)" />
-                    <span>Complete JSON Database Backup</span>
+                    <span>Download JSON Backup</span>
                   </div>
                   <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.35rem', lineHeight: 1.4 }}>
-                    Full raw data export including all customer profiles, individual bills, purchased item details, payments, and FIFO clearance allocations.
+                    Full raw data export including all customer profiles, bills, purchased item details, payments, and FIFO allocations.
                   </div>
                 </div>
                 <button
@@ -575,10 +575,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <div>
                   <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.94rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
                     <FileSpreadsheet size={17} color="var(--color-credit)" />
-                    <span>Customer Ledger Spreadsheet (CSV / Excel)</span>
+                    <span>Download Excel / CSV</span>
                   </div>
                   <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.35rem', lineHeight: 1.4 }}>
-                    Ready for Excel / Google Sheets: Customer names, phone numbers, addresses, total credit issued, total collected, and current outstanding balances.
+                    Ready for Excel / Google Sheets: Customer names, phone numbers, addresses, total credit issued, total collected, and current balances.
                   </div>
                 </div>
                 <button
@@ -601,40 +601,36 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   )}
                 </button>
               </div>
-              {/* 3. Danger Zone: Wipe All Shop Data */}
+
+              {/* 3. Delete All Data Card */}
               <div style={{
-                background: 'var(--color-debit-bg)',
-                border: '1px solid var(--color-debit-border)',
+                background: 'var(--bg-surface-elevated)',
+                border: '1px solid var(--border-medium)',
                 borderRadius: 'var(--radius-sm)',
                 padding: '1.25rem',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                gap: '1rem',
-                marginTop: '0.5rem'
+                gap: '1rem'
               }}>
                 <div>
-                  <div style={{ fontWeight: 800, color: 'var(--color-debit)', fontSize: '0.94rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                    <AlertTriangle size={17} color="var(--color-debit)" />
-                    <span>Danger Zone: Erase All Customers & Ledger History</span>
+                  <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.94rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                    <Trash2 size={16} color="var(--text-secondary)" />
+                    <span>Delete All Data</span>
                   </div>
                   <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.35rem', lineHeight: 1.4 }}>
-                    Permanently delete all customer profiles, credit invoices, and payment records for this shop. Requires your account password.
+                    Delete all customers, credit bills, and payment records for this shop. Enter password to proceed.
                   </div>
                 </div>
                 <button
                   type="button"
-                  className="btn"
+                  className="btn btn-outline"
                   style={{
                     whiteSpace: 'nowrap',
                     fontWeight: 700,
                     minWidth: '160px',
-                    background: 'var(--color-debit)',
-                    color: '#ffffff',
-                    border: 'none',
-                    borderRadius: 'var(--radius-sm)',
-                    cursor: 'pointer',
-                    padding: '0.65rem 1rem'
+                    borderColor: 'var(--border-medium)',
+                    color: 'var(--color-debit)'
                   }}
                   onClick={() => {
                     setDeletePassword('');
@@ -642,41 +638,34 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     setIsDeleteAllModalOpen(true);
                   }}
                 >
-                  <Trash2 size={15} />
-                  <span>Wipe All Data</span>
+                  <Trash2 size={14} />
+                  <span>Delete All Data</span>
                 </button>
               </div>
             </div>
           )}
         </div>
       </div>
-      {/* Password-Protected Wipe All Data Modal */}
+
+      {/* Password-Protected Delete All Data Modal */}
       {isDeleteAllModalOpen && (
         <div className="modal-overlay" onClick={() => setIsDeleteAllModalOpen(false)}>
           <div
             className="modal-content"
             onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: '440px', width: '100%', padding: '1.75rem' }}
+            style={{ maxWidth: '420px', width: '100%', padding: '1.5rem' }}
           >
-            <div style={{
-              width: '56px',
-              height: '56px',
-              borderRadius: '50%',
-              background: 'var(--color-debit-bg)',
-              border: '1.5px solid var(--color-debit-border)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 1.25rem auto'
-            }}>
-              <AlertTriangle size={28} color="var(--color-debit)" />
+            <div className="modal-header" style={{ marginBottom: '1rem' }}>
+              <div className="modal-title" style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                <span>Delete All Data</span>
+              </div>
+              <button type="button" className="icon-btn" onClick={() => setIsDeleteAllModalOpen(false)} disabled={isDeletingAll}>
+                <ArrowLeft size={16} />
+              </button>
             </div>
 
-            <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', textAlign: 'center', margin: '0 0 0.5rem 0' }}>
-              Confirm Complete Data Wipe?
-            </h3>
-            <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', textAlign: 'center', lineHeight: 1.4, margin: '0 0 1.25rem 0' }}>
-              You are about to permanently erase all customers, bills, and transaction ledger history for <strong>{currentShop?.shop_name}</strong>.
+            <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', lineHeight: 1.4, margin: '0 0 1rem 0' }}>
+              Please enter your password to proceed with deleting all customer records, bills, and payments for <strong>{currentShop?.shop_name}</strong>.
             </p>
 
             {deleteError && (
@@ -696,11 +685,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
             <form onSubmit={handleDeleteAllData}>
               <div className="form-group" style={{ marginBottom: '1.25rem' }}>
-                <label className="form-label">Enter Account Password to Confirm *</label>
+                <label className="form-label">Password *</label>
                 <input
                   type="password"
                   className="form-input"
-                  placeholder="Enter your current password"
+                  placeholder="Enter your password to proceed"
                   value={deletePassword}
                   onChange={(e) => setDeletePassword(e.target.value)}
                   required
@@ -740,10 +729,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   {isDeletingAll ? (
                     <>
                       <Loader2 size={15} style={{ animation: 'spin 0.8s linear infinite' }} />
-                      <span>Wiping...</span>
+                      <span>Deleting...</span>
                     </>
                   ) : (
-                    <span>Confirm Wipe</span>
+                    <span>Delete All Data</span>
                   )}
                 </button>
               </div>
