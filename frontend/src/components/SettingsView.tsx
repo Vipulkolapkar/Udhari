@@ -51,6 +51,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [activeTab, setActiveTab] = useState<SettingsTab>('APPEARANCE');
 
   // Password Change
+  const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordMsg, setPasswordMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -60,10 +61,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // 1. Verify Old Password
+    if (currentShop?.password && oldPassword !== currentShop.password) {
+      setPasswordMsg({ type: 'error', text: 'Incorrect old password. Please enter your valid current password.' });
+      return;
+    }
+
     if (!newPassword || newPassword.length < 6) {
       setPasswordMsg({ type: 'error', text: 'New password must be at least 6 characters.' });
       return;
     }
+
+    if (newPassword === oldPassword) {
+      setPasswordMsg({ type: 'error', text: 'New password must be different from your old password.' });
+      return;
+    }
+
     if (newPassword !== confirmPassword) {
       setPasswordMsg({ type: 'error', text: 'New passwords do not match.' });
       return;
@@ -73,8 +87,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setPasswordMsg(null);
 
     try {
-      onSaveShopSettings({ password: newPassword });
-      setPasswordMsg({ type: 'success', text: 'Password updated successfully!' });
+      await onSaveShopSettings({ password: newPassword });
+      setPasswordMsg({ type: 'success', text: 'Password changed successfully!' });
+      setOldPassword('');
       setNewPassword('');
       setConfirmPassword('');
     } catch (err: any) {
@@ -396,6 +411,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               )}
 
               <form onSubmit={handlePasswordChange} style={{ maxWidth: '420px', display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+                <div className="form-group">
+                  <label className="form-label">Old / Current Password *</label>
+                  <input
+                    type="password"
+                    className="form-input"
+                    placeholder="Enter your current password"
+                    value={oldPassword}
+                    onChange={(e) => setOldPassword(e.target.value)}
+                    required
+                  />
+                </div>
+
                 <div className="form-group">
                   <label className="form-label">New Password *</label>
                   <input
