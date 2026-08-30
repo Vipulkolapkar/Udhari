@@ -239,7 +239,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         }
       });
       if (error) {
-        setErrorMessage(`${error.message} (For testing, you can use code: 123456)`);
+        if (error.message.toLowerCase().includes('magic link') || error.message.toLowerCase().includes('validation')) {
+          setErrorMessage('Resend sandbox only sends to your Resend signup email. To send to all emails, add a domain in Resend or use Gmail SMTP. (For testing, use code: 123456)');
+        } else {
+          setErrorMessage(`${error.message} (For testing, use code: 123456)`);
+        }
       }
 
       setForgotStep('OTP');
