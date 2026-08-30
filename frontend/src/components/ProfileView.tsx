@@ -62,6 +62,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [category, setCategory] = useState<ShopCategory>(currentShop?.shop_category || 'GENERAL');
   const [address, setAddress] = useState(currentShop?.address || '');
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
 
   // OTP Verification
   const [isPhoneVerified, setIsPhoneVerified] = useState(true);
@@ -197,18 +198,31 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
+    setProfileError(null);
+
+    const cleanEmail = email.trim().toLowerCase();
+    const currentEmail = (currentShop?.email || '').trim().toLowerCase();
+
+    // If changing email, strictly enforce OTP verification on new email
+    if (cleanEmail && cleanEmail !== currentEmail && !isEmailVerified) {
+      setProfileError('Please verify your new email address with OTP before saving.');
+      setOtpModal({ type: 'EMAIL', target: cleanEmail });
+      return;
+    }
+
     onSaveShopSettings({
       shop_name: shopName.trim(),
       owner_name: ownerName.trim(),
       phone: phone.trim(),
       whatsapp_phone: whatsappPhone.trim() || phone.trim(),
-      email: email.trim() || undefined,
+      email: cleanEmail || undefined,
       gstin: gstin.trim() || undefined,
       shop_category: category,
       address: address.trim() || undefined
     });
     setSaveSuccess(true);
     setIsEditing(false);
+    setProfileError(null);
     setTimeout(() => setSaveSuccess(false), 2500);
   };
 
@@ -285,6 +299,19 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       }}>
         {isEditing ? (
           <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            {profileError && (
+              <div style={{
+                background: 'var(--color-debit-bg)',
+                border: '1px solid var(--color-debit-border)',
+                color: 'var(--color-debit)',
+                padding: '0.65rem 0.85rem',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: '0.82rem',
+                fontWeight: 600
+              }}>
+                {profileError}
+              </div>
+            )}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.75rem' }}>
               <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                 Edit Business Information
@@ -379,15 +406,33 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                     </button>
                   ) : null}
                 </div>
-                <input
-                  type="email"
-                  className="form-input"
-                  value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    if (e.target.value !== currentShop?.email) setIsEmailVerified(false);
-                  }}
-                />
+                <div style={{ display: 'flex', gap: '0.45rem' }}>
+                  <input
+                    type="email"
+                    className="form-input"
+                    value={email}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setEmail(val);
+                      if (val.trim().toLowerCase() !== (currentShop?.email || '').trim().toLowerCase()) {
+                        setIsEmailVerified(false);
+                      } else {
+                        setIsEmailVerified(true);
+                      }
+                    }}
+                    style={{ flex: 1 }}
+                  />
+                  {!isEmailVerified && email.includes('@') && (
+                    <button
+                      type="button"
+                      className="btn btn-outline"
+                      style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem', fontWeight: 600, whiteSpace: 'nowrap' }}
+                      onClick={() => setOtpModal({ type: 'EMAIL', target: email.trim().toLowerCase() })}
+                    >
+                      Verify OTP
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="form-group">
