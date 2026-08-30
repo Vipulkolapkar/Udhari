@@ -46,7 +46,7 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
           email: target.trim().toLowerCase(),
           options: {
             emailRedirectTo: typeof window !== 'undefined' ? window.location.origin : undefined,
-            shouldCreateUser: false
+            shouldCreateUser: true
           }
         });
         if (emailError) {

@@ -160,7 +160,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         email: cleanEmail,
         options: {
           emailRedirectTo: typeof window !== 'undefined' ? window.location.origin : undefined,
-          shouldCreateUser: false
+          shouldCreateUser: true
         }
       });
       if (error) {
@@ -876,7 +876,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                 <input
                   type={showRegPassword ? 'text' : 'password'}
                   className="form-input"
-                  placeholder="At least 6 characters"
+                  placeholder="e.g. Strong@123"
                   value={registerPassword}
                   onChange={(e) => setRegisterPassword(e.target.value)}
                   required
@@ -899,6 +899,30 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                   {showRegPassword ? <EyeOff size={15} /> : <Eye size={15} />}
                 </button>
               </div>
+
+              {/* Password Rules Checklist */}
+              {(() => {
+                const r = getPasswordRuleStatus(registerPassword);
+                return (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginTop: '0.45rem', fontSize: '0.71rem' }}>
+                    <span style={{ color: r.minLength ? 'var(--color-credit)' : 'var(--text-muted)', fontWeight: r.minLength ? 700 : 500 }}>
+                      {r.minLength ? '✓' : '○'} 8+ chars
+                    </span>
+                    <span style={{ color: r.hasUpper ? 'var(--color-credit)' : 'var(--text-muted)', fontWeight: r.hasUpper ? 700 : 500 }}>
+                      {r.hasUpper ? '✓' : '○'} Uppercase
+                    </span>
+                    <span style={{ color: r.hasLower ? 'var(--color-credit)' : 'var(--text-muted)', fontWeight: r.hasLower ? 700 : 500 }}>
+                      {r.hasLower ? '✓' : '○'} Lowercase
+                    </span>
+                    <span style={{ color: r.hasNumber ? 'var(--color-credit)' : 'var(--text-muted)', fontWeight: r.hasNumber ? 700 : 500 }}>
+                      {r.hasNumber ? '✓' : '○'} Number
+                    </span>
+                    <span style={{ color: r.hasSymbol ? 'var(--color-credit)' : 'var(--text-muted)', fontWeight: r.hasSymbol ? 700 : 500 }}>
+                      {r.hasSymbol ? '✓' : '○'} Symbol (!@#$)
+                    </span>
+                  </div>
+                );
+              })()}
             </div>
 
             <button

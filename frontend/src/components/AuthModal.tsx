@@ -135,7 +135,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         email: cleanEmail,
         options: {
           emailRedirectTo: typeof window !== 'undefined' ? window.location.origin : undefined,
-          shouldCreateUser: false
+          shouldCreateUser: true
         }
       });
       if (error) {
