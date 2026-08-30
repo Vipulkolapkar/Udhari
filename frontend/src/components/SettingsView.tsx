@@ -1,4 +1,5 @@
 'use client';
+import { validatePasswordStrength, getPasswordRuleStatus } from '../lib/validation';
 
 import React, { useState } from 'react';
 import {
@@ -73,8 +74,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       return;
     }
 
-    if (!newPassword || newPassword.length < 6) {
-      setPasswordMsg({ type: 'error', text: 'Password must be at least 6 characters.' });
+    const validation = validatePasswordStrength(newPassword);
+    if (!validation.isValid) {
+      setPasswordMsg({ type: 'error', text: validation.error || 'Password does not meet security requirements.' });
       return;
     }
 

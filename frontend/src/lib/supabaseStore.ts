@@ -1,4 +1,5 @@
 'use client';
+import { validatePasswordStrength } from './validation';
 
 import { supabase } from './supabase';
 import { Customer, Invoice, Payment, DashboardMetrics, ShopUser, ShopCategory, CustomerMessage } from '../types';

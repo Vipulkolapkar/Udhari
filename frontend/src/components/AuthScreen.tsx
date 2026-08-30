@@ -1,4 +1,5 @@
 'use client';
+import { validatePasswordStrength, getPasswordRuleStatus } from '../lib/validation';
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
@@ -228,7 +229,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
       if (checkError) throw new Error(checkError.message);
       if (!existingShop || existingShop.length === 0) {
-        throw new Error(`No registered business found for "${cleanEmail}". Please check spelling or register.`);
+        setErrorMessage(`No account found with "${cleanEmail}". Please verify your email or register.`);
+        setIsSendingForgotOtp(false);
+        return;
       }
 
       await supabase.auth.signOut().catch(() => {});
@@ -297,8 +300,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
     e.preventDefault();
     setErrorMessage(null);
 
-    if (!forgotNewPassword || forgotNewPassword.length < 6) {
-      setErrorMessage('New password must be at least 6 characters.');
+    const validation = validatePasswordStrength(forgotNewPassword);
+    if (!validation.isValid) {
+      setErrorMessage(validation.error || 'Password does not meet security requirements.');
       return;
     }
     if (forgotNewPassword !== forgotConfirmPassword) {
@@ -404,8 +408,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
       setErrorMessage('Please verify your email address to continue.');
       return;
     }
-    if (!registerPassword || registerPassword.length < 6) {
-      setErrorMessage('Password must be at least 6 characters.');
+    const passValidation = validatePasswordStrength(registerPassword);
+    if (!passValidation.isValid) {
+      setErrorMessage(passValidation.error || 'Password does not meet security requirements.');
       return;
     }
 
@@ -1087,7 +1092,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                     <input
                       type={showForgotPass ? 'text' : 'password'}
                       className="form-input"
-                      placeholder="At least 6 characters"
+                      placeholder="e.g. Strong@123"
                       value={forgotNewPassword}
                       onChange={(e) => setForgotNewPassword(e.target.value)}
                       required
@@ -1111,6 +1116,30 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                       {showForgotPass ? <EyeOff size={15} /> : <Eye size={15} />}
                     </button>
                   </div>
+
+                  {/* Dynamic Password Strength Checklist */}
+                  {(() => {
+                    const r = getPasswordRuleStatus(forgotNewPassword);
+                    return (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginTop: '0.45rem', fontSize: '0.72rem' }}>
+                        <span style={{ color: r.minLength ? 'var(--color-credit)' : 'var(--text-muted)', fontWeight: r.minLength ? 700 : 500 }}>
+                          {r.minLength ? '✓' : '○'} 8+ chars
+                        </span>
+                        <span style={{ color: r.hasUpper ? 'var(--color-credit)' : 'var(--text-muted)', fontWeight: r.hasUpper ? 700 : 500 }}>
+                          {r.hasUpper ? '✓' : '○'} Uppercase
+                        </span>
+                        <span style={{ color: r.hasLower ? 'var(--color-credit)' : 'var(--text-muted)', fontWeight: r.hasLower ? 700 : 500 }}>
+                          {r.hasLower ? '✓' : '○'} Lowercase
+                        </span>
+                        <span style={{ color: r.hasNumber ? 'var(--color-credit)' : 'var(--text-muted)', fontWeight: r.hasNumber ? 700 : 500 }}>
+                          {r.hasNumber ? '✓' : '○'} Number
+                        </span>
+                        <span style={{ color: r.hasSymbol ? 'var(--color-credit)' : 'var(--text-muted)', fontWeight: r.hasSymbol ? 700 : 500 }}>
+                          {r.hasSymbol ? '✓' : '○'} Special Symbol (!@#$)
+                        </span>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div className="form-group">

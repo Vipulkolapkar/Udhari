@@ -1,4 +1,5 @@
 'use client';
+import { validatePasswordStrength, getPasswordRuleStatus } from '../lib/validation';
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -203,7 +204,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
       if (checkError) throw new Error(checkError.message);
       if (!existingShop || existingShop.length === 0) {
-        throw new Error(`No registered business found for "${cleanEmail}".`);
+        setErrorMessage(`No account found with "${cleanEmail}". Please verify your email or register.`);
+        setIsSendingForgotOtp(false);
+        return;
       }
 
       await supabase.auth.signOut().catch(() => {});
@@ -272,8 +275,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     e.preventDefault();
     setErrorMessage(null);
 
-    if (!forgotNewPassword || forgotNewPassword.length < 6) {
-      setErrorMessage('New password must be at least 6 characters.');
+    const validation = validatePasswordStrength(forgotNewPassword);
+    if (!validation.isValid) {
+      setErrorMessage(validation.error || 'Password does not meet security requirements.');
       return;
     }
     if (forgotNewPassword !== forgotConfirmPassword) {
@@ -357,8 +361,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setErrorMessage('Please verify your email address to continue.');
       return;
     }
-    if (!registerPassword || registerPassword.length < 6) {
-      setErrorMessage('Password must be at least 6 characters.');
+    const passValidation = validatePasswordStrength(registerPassword);
+    if (!passValidation.isValid) {
+      setErrorMessage(passValidation.error || 'Password does not meet security requirements.');
       return;
     }
 
