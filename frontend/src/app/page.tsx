@@ -73,7 +73,7 @@ export default function Home() {
   const [isDeletingCustomer, setIsDeletingCustomer] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [oauthSuccessState, setOauthSuccessState] = useState<{ isSuccess: boolean; title: string; subtitle: string } | null>(null);
+
   const [prefilledAuth, setPrefilledAuth] = useState<{
     tab?: 'LOGIN' | 'REGISTER';
     email?: string;
@@ -163,17 +163,8 @@ export default function Home() {
     }
 
     // ─── Listen for Email Verification / Link Click Redirects ───
-    const handleAuthEvent = async (session: any, isFreshRedirect: boolean) => {
+    const handleAuthEvent = async (session: any) => {
       if (!session?.user) return;
-
-      // Only show the gamified tick mark overlay if this was an actual fresh OAuth/link redirect landing
-      if (isFreshRedirect) {
-        setOauthSuccessState({
-          isSuccess: true,
-          title: 'Success!',
-          subtitle: 'Preparing your business workspace...'
-        });
-      }
 
       if (typeof window !== 'undefined') {
         const pending = localStorage.getItem('udhari_pending_registration');
@@ -184,15 +175,6 @@ export default function Home() {
             const newShop = await sbRegisterShop(shopData);
             sbSetCurrentUser(newShop);
             await refreshData(newShop.id);
-            if (isFreshRedirect) {
-              setOauthSuccessState({
-                isSuccess: true,
-                title: 'Success!',
-                subtitle: `Welcome, ${newShop.owner_name} (${newShop.shop_name})`
-              });
-              await new Promise((r) => setTimeout(r, 1500));
-              setOauthSuccessState(null);
-            }
             showToast(`Welcome! Business "${newShop.shop_name}" registered successfully!`);
             return;
           } catch (e) {
@@ -209,29 +191,17 @@ export default function Home() {
           if (matchedShop) {
             sbSetCurrentUser(matchedShop);
             await refreshData(matchedShop.id);
-            if (isFreshRedirect) {
-              setOauthSuccessState({
-                isSuccess: true,
-                title: 'Success!',
-                subtitle: `Welcome back, ${matchedShop.owner_name} (${matchedShop.shop_name})`
-              });
-              await new Promise((r) => setTimeout(r, 1500));
-              setOauthSuccessState(null);
-            }
             showToast(`Signed in to ${matchedShop.shop_name}`);
             return;
           } else if (userEmail) {
-            // Account does NOT exist yet! Route to registration with prefilled verified email
-            setOauthSuccessState(null);
             const fullName = session.user.user_metadata?.full_name || session.user.user_metadata?.name || '';
             setPrefilledAuth({
               tab: 'REGISTER',
               email: userEmail,
               ownerName: fullName,
               isEmailVerified: true,
-              message: `✅ Email verified (${userEmail}). No registered business found. Please enter your business details below to complete registration.`
+              message: `Email verified (${userEmail}). Enter business details to register.`
             });
-            showToast('No account found. Please complete business registration.');
             return;
           }
         } catch (e) {
@@ -240,24 +210,20 @@ export default function Home() {
       }
 
       await refreshData();
-      if (isFreshRedirect) {
-        setOauthSuccessState(null);
-      }
     };
 
     // Only process redirect landing if URL explicitly contains auth token/code
     if (isAuthRedirectLanding) {
       supabase.auth.getSession().then(({ data: { session } }) => {
         if (session?.user) {
-          handleAuthEvent(session, true);
+          handleAuthEvent(session);
         }
       });
     }
 
     const { data: authSub } = supabase.auth.onAuthStateChange(async (event, session) => {
-      // Ignore background tab focus / token refresh events
       if (event === 'SIGNED_IN' && isAuthRedirectLanding) {
-        await handleAuthEvent(session, true);
+        await handleAuthEvent(session);
       }
     });
 
@@ -550,123 +516,6 @@ export default function Home() {
   }
 
   // ─── Gamified OAuth / Verification Success Overlay ─────────────────
-  if (oauthSuccessState) {
-    return (
-      <div style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'var(--bg-app)',
-        padding: '2rem 1rem'
-      }}>
-        <div style={{
-          maxWidth: '440px',
-          width: '100%',
-          background: 'var(--bg-surface)',
-          border: '1px solid var(--border-medium)',
-          borderRadius: 'var(--radius-xl)',
-          padding: '2.5rem 2rem',
-          textAlign: 'center',
-          boxShadow: 'var(--shadow-lg)',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '1.25rem',
-          position: 'relative',
-          overflow: 'hidden'
-        }}>
-          {/* Animated Glow Background Pulse */}
-          <div style={{
-            position: 'absolute',
-            top: '-50px',
-            width: '200px',
-            height: '200px',
-            background: 'radial-gradient(circle, rgba(52, 211, 153, 0.25) 0%, rgba(0,0,0,0) 70%)',
-            pointerEvents: 'none',
-            zIndex: 0
-          }} />
-
-          {/* Gamified Tick Icon */}
-          <div style={{
-            width: '80px',
-            height: '80px',
-            borderRadius: '50%',
-            background: 'var(--color-credit-bg)',
-            border: '2.5px solid var(--color-credit)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            position: 'relative',
-            zIndex: 1,
-            boxShadow: '0 0 35px rgba(52, 211, 153, 0.35)',
-            animation: 'popSuccess 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards'
-          }}>
-            <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="var(--color-credit)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="20 6 9 17 4 12" />
-            </svg>
-          </div>
-
-          {/* Title & Subtitle */}
-          <div style={{ position: 'relative', zIndex: 1 }}>
-            <h2 style={{
-              fontSize: '1.5rem',
-              fontWeight: 800,
-              color: 'var(--text-primary)',
-              letterSpacing: '-0.02em',
-              margin: '0 0 0.4rem 0'
-            }}>
-              {oauthSuccessState.title}
-            </h2>
-            <p style={{
-              fontSize: '0.9rem',
-              color: 'var(--text-secondary)',
-              margin: 0,
-              lineHeight: 1.4
-            }}>
-              {oauthSuccessState.subtitle}
-            </p>
-          </div>
-
-          {/* Gamified Progress Bar */}
-          <div style={{
-            width: '100%',
-            height: '6px',
-            background: 'var(--bg-surface-elevated)',
-            borderRadius: '9999px',
-            overflow: 'hidden',
-            marginTop: '0.5rem',
-            position: 'relative',
-            zIndex: 1
-          }}>
-            <div style={{
-              height: '100%',
-              background: 'linear-gradient(90deg, #34d399, #10b981)',
-              borderRadius: '9999px',
-              animation: 'fillProgress 1.7s cubic-bezier(0.4, 0, 0.2, 1) forwards'
-            }} />
-          </div>
-
-
-
-          <style>{`
-            @keyframes popSuccess {
-              0% { transform: scale(0.4); opacity: 0; }
-              70% { transform: scale(1.15); opacity: 1; }
-              100% { transform: scale(1); opacity: 1; }
-            }
-            @keyframes fillProgress {
-              0% { width: 5%; }
-              50% { width: 65%; }
-              100% { width: 100%; }
-            }
-          `}</style>
-        </div>
-      </div>
-    );
-  }
-
-  // ─── Auth Screen ──────────────────────────────────────────────────
   if (!currentShop) {
     return (
       <AuthScreen
