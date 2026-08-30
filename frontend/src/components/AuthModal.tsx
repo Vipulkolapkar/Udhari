@@ -895,18 +895,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   )}
                 </button>
 
-                <button
-                  type="button"
-                  className="btn btn-outline"
-                  style={{ width: '100%', fontSize: '0.75rem', padding: '0.35rem 0.5rem' }}
-                  onClick={() => {
-                    setForgotCode('123456');
-                    setForgotStep('NEW_PASSWORD');
-                  }}
-                >
-                  <KeyRound size={12} />
-                  <span>Use Demo OTP (123456)</span>
-                </button>
+
               </form>
             )}
 
