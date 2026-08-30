@@ -690,7 +690,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   gap: '0.45rem'
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Code sent to {email}:</span>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--color-credit)', fontWeight: 600 }}>✓ Code sent to {email} (Check Inbox & Spam):</span>
                     {otpTimer > 0 ? (
                       <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{otpTimer}s</span>
                     ) : (
