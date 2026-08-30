@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useEffect } from 'react';
-import { Search, X, Mic, User, Phone } from 'lucide-react';
+import { Search, X, User, Phone } from 'lucide-react';
 import { Language } from '../types';
 import { getTranslation } from '../lib/translations';
 
@@ -13,7 +13,6 @@ interface CustomerSearchBarProps {
   searchMode: SearchMode;
   onSearchModeChange: (mode: SearchMode) => void;
   language: Language;
-  onVoiceClick?: () => void;
 }
 
 export const CustomerSearchBar: React.FC<CustomerSearchBarProps> = ({
@@ -22,7 +21,6 @@ export const CustomerSearchBar: React.FC<CustomerSearchBarProps> = ({
   searchMode,
   onSearchModeChange,
   language,
-  onVoiceClick,
 }) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const t = getTranslation(language);
@@ -151,30 +149,7 @@ export const CustomerSearchBar: React.FC<CustomerSearchBarProps> = ({
             </button>
           )}
 
-          {/* Quick Mic trigger */}
-          {onVoiceClick && (
-            <button
-              type="button"
-              className="icon-btn"
-              style={{
-                width: '28px',
-                height: '28px',
-                padding: 0,
-                borderRadius: 'var(--radius-xs)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--text-secondary)',
-                background: 'var(--bg-surface-elevated)',
-                border: '1px solid var(--border-subtle)',
-                cursor: 'pointer'
-              }}
-              onClick={onVoiceClick}
-              title={t.voiceBilling}
-            >
-              <Mic size={14} />
-            </button>
-          )}
+
 
           <span className="search-shortcut-badge">⌘K</span>
         </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Calendar, Mic, UserPlus } from 'lucide-react';
+import { Calendar, UserPlus } from 'lucide-react';
 import { Language, ShopUser } from '../types';
 import { getTranslation } from '../lib/translations';
 import { UdhariLogo } from './UdhariLogo';
@@ -9,14 +9,12 @@ import { UdhariLogo } from './UdhariLogo';
 interface HeaderProps {
   currentShop: ShopUser | null;
   language: Language;
-  onVoiceBillClick?: () => void;
   onAddCustomerClick?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   currentShop,
   language,
-  onVoiceBillClick,
   onAddCustomerClick,
 }) => {
   const t = getTranslation(language);
@@ -102,22 +100,7 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         )}
 
-        {/* Voice Entry Button */}
-        {onVoiceBillClick && (
-          <button
-            type="button"
-            className="btn btn-outline"
-            onClick={onVoiceBillClick}
-            style={{
-              borderColor: 'var(--border-medium)',
-              fontWeight: 600,
-              padding: '0.5rem 0.95rem'
-            }}
-          >
-            <Mic size={16} />
-            <span>{t.voiceBilling}</span>
-          </button>
-        )}
+
 
         {/* Live Date Badge */}
         <div

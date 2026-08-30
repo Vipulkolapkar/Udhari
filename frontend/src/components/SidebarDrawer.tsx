@@ -14,7 +14,6 @@ import {
   Globe,
   LogOut,
   UserPlus,
-  Mic,
   RotateCcw,
   Sparkles,
   LayoutDashboard,
@@ -33,7 +32,6 @@ interface SidebarDrawerProps {
   onOpenSettings: () => void;
   onOpenAuth: () => void;
   onAddCustomer: () => void;
-  onVoiceBill: () => void;
   onThemeToggle: () => void;
   onLanguageChange: (lang: Language) => void;
   onLogout: () => void;
@@ -48,7 +46,6 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
   onOpenSettings,
   onOpenAuth,
   onAddCustomer,
-  onVoiceBill,
   onThemeToggle,
   onLanguageChange,
   onLogout
@@ -199,17 +196,7 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
               <span>{t.addCustomer}</span>
             </button>
 
-            <button
-              type="button"
-              className="sidebar-nav-item"
-              onClick={() => {
-                onClose();
-                onVoiceBill();
-              }}
-            >
-              <Mic size={16} />
-              <span>{t.voiceBilling}</span>
-            </button>
+
 
             <button
               type="button"

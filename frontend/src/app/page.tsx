@@ -42,7 +42,6 @@ import { CreateBillModal } from '../components/CreateBillModal';
 import { RecordPaymentModal } from '../components/RecordPaymentModal';
 import { LedgerModal } from '../components/LedgerModal';
 import { WhatsAppModal } from '../components/WhatsAppModal';
-import { VoiceBillModal } from '../components/VoiceBillModal';
 import { AddCustomerModal } from '../components/AddCustomerModal';
 import { AuthModal } from '../components/AuthModal';
 import { ProfileView } from '../components/ProfileView';
@@ -88,7 +87,6 @@ export default function Home() {
   const [paymentModalCustomer, setPaymentModalCustomer] = useState<Customer | null>(null);
   const [ledgerModalCustomer, setLedgerModalCustomer] = useState<Customer | null>(null);
   const [whatsappModalCustomer, setWhatsappModalCustomer] = useState<Customer | null>(null);
-  const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
   const [isAddCustomerOpen, setIsAddCustomerOpen] = useState(false);
 
   const showToast = (msg: string) => {
@@ -485,11 +483,7 @@ export default function Home() {
     showToast('All customer and ledger data deleted.');
   };
 
-  // ─── Voice Recognition ────────────────────────────────────────────
-  const handleVoiceRecognized = (customer: Customer, _amount: number, _note: string) => {
-    setIsVoiceModalOpen(false);
-    setBillModalCustomer(customer);
-  };
+
 
   // ─── Loading / Init Guard ─────────────────────────────────────────
   if (!isInitialized) {
@@ -564,7 +558,6 @@ export default function Home() {
             <Header
               currentShop={currentShop}
               language={language}
-              onVoiceBillClick={() => setIsVoiceModalOpen(true)}
               onAddCustomerClick={() => setIsAddCustomerOpen(true)}
             />
             <DashboardStats metrics={metrics} language={language} />
@@ -574,7 +567,6 @@ export default function Home() {
               searchMode={searchMode}
               onSearchModeChange={setSearchMode}
               language={language}
-              onVoiceClick={() => setIsVoiceModalOpen(true)}
             />
 
             <section>
@@ -702,14 +694,7 @@ export default function Home() {
         />
       )}
 
-      {isVoiceModalOpen && (
-        <VoiceBillModal
-          customers={customers}
-          language={language}
-          onClose={() => setIsVoiceModalOpen(false)}
-          onRecognized={handleVoiceRecognized}
-        />
-      )}
+
 
       {isAddCustomerOpen && (
         <AddCustomerModal
