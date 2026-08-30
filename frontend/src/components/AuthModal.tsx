@@ -223,7 +223,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     e.preventDefault();
     setErrorMessage(null);
     const token = forgotOtpValues.join('');
-    if (token.length < 6) {
+    if (token.length < 4) {
       setErrorMessage('Please enter 6-digit code received on your Gmail.');
       return;
     }
@@ -972,36 +972,26 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                         </button>
                       )}
                     </div>
-                    <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'center' }}>
-                      {forgotOtpValues.map((val, i) => (
-                        <input
-                          key={i}
-                          ref={(el) => { forgotOtpRefs.current[i] = el; }}
-                          type="text"
-                          inputMode="numeric"
-                          maxLength={1}
-                          value={val}
-                          onChange={(e) => {
-                            const digit = e.target.value.replace(/\D/g, '').slice(-1);
-                            const newVals = [...forgotOtpValues];
-                            newVals[i] = digit;
-                            setForgotOtpValues(newVals);
-                            if (digit && i < 5) forgotOtpRefs.current[i + 1]?.focus();
-                          }}
-                          style={{
-                            width: '34px',
-                            height: '40px',
-                            textAlign: 'center',
-                            fontSize: '1.1rem',
-                            fontWeight: 700,
-                            border: '1.5px solid var(--border-medium)',
-                            borderRadius: 'var(--radius-xs)',
-                            background: 'var(--bg-surface)',
-                            color: 'var(--text-primary)',
-                            outline: 'none'
-                          }}
-                        />
-                      ))}
+                    <div style={{ width: '100%', maxWidth: '280px', margin: '0 auto' }}>
+                      <input
+                        type="text"
+                        className="form-input"
+                        placeholder="Enter 6 or 8 digit code"
+                        value={forgotOtpValues.join('')}
+                        onChange={(e) => {
+                          const clean = e.target.value.replace(/[^a-zA-Z0-9]/g, '').slice(0, 10);
+                          setForgotOtpValues(clean.split(''));
+                        }}
+                        style={{
+                          textAlign: 'center',
+                          fontSize: '1.25rem',
+                          fontWeight: 800,
+                          letterSpacing: '3px',
+                          height: '44px',
+                          color: 'var(--text-primary)'
+                        }}
+                        autoFocus
+                      />
                     </div>
                   </div>
 

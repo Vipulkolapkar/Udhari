@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { X, ShieldCheck, Mail, Smartphone, RefreshCw, CheckCircle, ExternalLink, KeyRound } from 'lucide-react';
+import { X, ShieldCheck, Mail, Smartphone, RefreshCw, CheckCircle, KeyRound, Loader2, ArrowRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface OtpVerificationModalProps {
@@ -18,7 +18,7 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
   onVerified,
 }) => {
   const isEmail = type === 'EMAIL';
-  const [otpValues, setOtpValues] = useState<string[]>(['', '', '', '', '', '']);
+  const [code, setCode] = useState('');
   const [isSending, setIsSending] = useState(true);
   const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,7 +27,7 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
   const [isSuccess, setIsSuccess] = useState(false);
   const [isDemoMode, setIsDemoMode] = useState(false);
 
-  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const displayTarget = isEmail
     ? target
@@ -69,7 +69,7 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
 
       setOtpSent(true);
       setTimer(60);
-      setTimeout(() => inputRefs.current[0]?.focus(), 100);
+      setTimeout(() => inputRef.current?.focus(), 100);
     } catch (err: unknown) {
       setIsDemoMode(true);
       const msg = err instanceof Error ? err.message : 'Failed to send OTP.';
@@ -84,27 +84,6 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
     sendOtp();
   }, [target]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Real-time listener: trigger on SIGNED_IN
-  useEffect(() => {
-    if (!otpSent) return;
-
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
-        if (session?.user?.email?.toLowerCase() === target.trim().toLowerCase() || !session?.user?.email) {
-          setIsSuccess(true);
-          setTimeout(() => {
-            onVerified();
-            onClose();
-          }, 600);
-        }
-      }
-    });
-
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
-  }, [otpSent, target, onVerified, onClose]);
-
   // Countdown timer
   useEffect(() => {
     if (timer <= 0 || !otpSent) return;
@@ -112,13 +91,16 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
     return () => clearInterval(interval);
   }, [timer, otpSent]);
 
-  // Verify OTP via 6-digit code
-  const verifyOtp = async (code: string) => {
+  // Verify OTP via token (supports 6 to 8 characters/digits)
+  const handleVerify = async (codeToVerify: string) => {
+    const cleanToken = codeToVerify.trim();
+    if (!cleanToken) return;
+
     setIsVerifying(true);
     setError(null);
 
     // 1. Check Demo / Test Code
-    if (code === '123456') {
+    if (cleanToken === '123456') {
       setIsSuccess(true);
       setTimeout(() => {
         onVerified();
@@ -133,7 +115,7 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
       if (isEmail) {
         const { error } = await supabase.auth.verifyOtp({
           email: target.trim().toLowerCase(),
-          token: code,
+          token: cleanToken,
           type: 'email'
         });
         verifyError = error;
@@ -141,16 +123,14 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
         const phone = target.startsWith('+') ? target : `+91${target.replace(/\D/g, '')}`;
         const { error } = await supabase.auth.verifyOtp({
           phone,
-          token: code,
+          token: cleanToken,
           type: 'sms'
         });
         verifyError = error;
       }
 
       if (verifyError) {
-        setError('Invalid code. Please check your inbox or use code 123456.');
-        setOtpValues(['', '', '', '', '', '']);
-        inputRefs.current[0]?.focus();
+        setError('Invalid verification code. Please check your email or enter 123456.');
       } else {
         setIsSuccess(true);
         setTimeout(() => {
@@ -165,31 +145,15 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
     }
   };
 
-  const handleChange = (index: number, value: string) => {
-    const digit = value.replace(/\D/g, '').slice(-1);
-    const newValues = [...otpValues];
-    newValues[index] = digit;
-    setOtpValues(newValues);
+  const handleInputChange = (val: string) => {
+    // Allow up to 10 alphanumeric characters (supports 6 or 8 digits)
+    const clean = val.replace(/[^a-zA-Z0-9]/g, '').slice(0, 10);
+    setCode(clean);
     setError(null);
 
-    if (digit && index < 5) {
-      inputRefs.current[index + 1]?.focus();
-    }
-
-    const fullCode = newValues.join('');
-    if (fullCode.length === 6 && !newValues.includes('')) {
-      verifyOtp(fullCode);
-    }
-  };
-
-  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Backspace') {
-      if (!otpValues[index] && index > 0) {
-        inputRefs.current[index - 1]?.focus();
-      }
-      const newValues = [...otpValues];
-      newValues[index] = '';
-      setOtpValues(newValues);
+    // Auto-trigger verify when 6 or 8 digits entered
+    if (clean.length === 6 || clean.length === 8) {
+      handleVerify(clean);
     }
   };
 
@@ -231,33 +195,56 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
             </p>
           </div>
 
-          {/* 6-Digit OTP Inputs */}
-          <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
-            {otpValues.map((val, i) => (
-              <input
-                key={i}
-                ref={(el) => { inputRefs.current[i] = el; }}
-                type="text"
-                inputMode="numeric"
-                maxLength={1}
-                value={val}
-                onChange={(e) => handleChange(i, e.target.value)}
-                onKeyDown={(e) => handleKeyDown(i, e)}
-                disabled={isVerifying || isSuccess}
-                style={{
-                  width: '38px',
-                  height: '44px',
-                  textAlign: 'center',
-                  fontSize: '1.2rem',
-                  fontWeight: 800,
-                  borderRadius: 'var(--radius-xs)',
-                  border: '1.5px solid var(--border-medium)',
-                  background: 'var(--bg-surface-elevated)',
-                  color: 'var(--text-primary)'
-                }}
-              />
-            ))}
+          {/* Flexible 6 to 8 Character Code Input */}
+          <div style={{ width: '100%', maxWidth: '300px' }}>
+            <input
+              ref={inputRef}
+              type="text"
+              className="form-input"
+              placeholder="Enter 6 or 8 digit code"
+              value={code}
+              onChange={(e) => handleInputChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleVerify(code);
+                }
+              }}
+              disabled={isVerifying || isSuccess}
+              autoFocus
+              style={{
+                textAlign: 'center',
+                fontSize: '1.35rem',
+                fontWeight: 800,
+                letterSpacing: '4px',
+                height: '48px',
+                color: 'var(--text-primary)',
+                background: 'var(--bg-surface-elevated)',
+                border: '2px solid var(--border-medium)'
+              }}
+            />
           </div>
+
+          {/* Verify Button */}
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={!code || isVerifying || isSuccess}
+            onClick={() => handleVerify(code)}
+            style={{ width: '100%', maxWidth: '300px', fontWeight: 700, padding: '0.65rem 1rem' }}
+          >
+            {isVerifying ? (
+              <>
+                <Loader2 size={15} style={{ animation: 'spin 0.8s linear infinite' }} />
+                <span>Verifying...</span>
+              </>
+            ) : (
+              <>
+                <span>Verify Code</span>
+                <ArrowRight size={14} />
+              </>
+            )}
+          </button>
 
           {/* Success message */}
           {isSuccess && (
@@ -309,10 +296,10 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
               <button
                 type="button"
                 className="btn btn-outline"
-                style={{ width: '100%', fontSize: '0.78rem', padding: '0.4rem 0.6rem', marginTop: '0.25rem' }}
+                style={{ width: '100%', maxWidth: '300px', fontSize: '0.78rem', padding: '0.4rem 0.6rem' }}
                 onClick={() => {
-                  setOtpValues(['1', '2', '3', '4', '5', '6']);
-                  verifyOtp('123456');
+                  setCode('123456');
+                  handleVerify('123456');
                 }}
               >
                 <KeyRound size={13} />
