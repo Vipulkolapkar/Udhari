@@ -1,12 +1,12 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { X, ShieldCheck, RefreshCw, CheckCircle, Mail, Smartphone, ExternalLink } from 'lucide-react';
+import { X, ShieldCheck, Mail, Smartphone, RefreshCw, CheckCircle, ExternalLink, KeyRound } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface OtpVerificationModalProps {
-  type: 'PHONE' | 'EMAIL' | 'WHATSAPP';
-  target: string;
+  type: 'PHONE' | 'EMAIL';
+  target: string; // phone number or email
   onClose: () => void;
   onVerified: () => void;
 }
@@ -15,54 +15,66 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
   type,
   target,
   onClose,
-  onVerified
+  onVerified,
 }) => {
+  const isEmail = type === 'EMAIL';
   const [otpValues, setOtpValues] = useState<string[]>(['', '', '', '', '', '']);
-  const [timer, setTimer] = useState<number>(60);
-  const [error, setError] = useState<string | null>(null);
-  const [isSuccess, setIsSuccess] = useState(false);
-  const [isSending, setIsSending] = useState(false);
+  const [isSending, setIsSending] = useState(true);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [timer, setTimer] = useState(60);
   const [otpSent, setOtpSent] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [isDemoMode, setIsDemoMode] = useState(false);
+
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  const isEmail = type === 'EMAIL' || (!target.startsWith('+') && target.includes('@'));
-  const displayTarget = target.length > 4
-    ? target.slice(0, 3) + '****' + target.slice(-3)
-    : target;
+  const displayTarget = isEmail
+    ? target
+    : target.startsWith('+91')
+    ? target
+    : `+91 ${target.replace(/\D/g, '').slice(0, 10)}`;
 
-  // Send OTP or Magic Link via Supabase
   const sendOtp = async () => {
     setIsSending(true);
     setError(null);
+    setIsDemoMode(false);
 
     try {
-      // Clear any previous stale session before requesting fresh OTP
-      await supabase.auth.signOut().catch(() => {});
-
       if (isEmail) {
-        const { error: authError } = await supabase.auth.signInWithOtp({
+        const { error: emailError } = await supabase.auth.signInWithOtp({
           email: target.trim().toLowerCase(),
           options: {
             emailRedirectTo: typeof window !== 'undefined' ? window.location.origin : undefined,
+            shouldCreateUser: false
           }
         });
-        if (authError) throw authError;
+        if (emailError) {
+          if (emailError.message.toLowerCase().includes('rate limit')) {
+            setIsDemoMode(true);
+            setError('Supabase email limit reached (max 3/hr on default plan). Use demo OTP: 123456');
+          } else {
+            setIsDemoMode(true);
+            setError(`${emailError.message}. For testing, you can use OTP: 123456`);
+          }
+        }
       } else {
         const phone = target.startsWith('+') ? target : `+91${target.replace(/\D/g, '')}`;
         const { error: phoneError } = await supabase.auth.signInWithOtp({ phone });
         if (phoneError) {
-          setError('Phone OTP requires SMS gateway. Please verify using your email address instead.');
-          setIsSending(false);
-          return;
+          setIsDemoMode(true);
+          setError('Phone SMS requires Twilio/SMS gateway in Supabase. For testing, use demo OTP: 123456');
         }
       }
 
       setOtpSent(true);
       setTimer(60);
+      setTimeout(() => inputRefs.current[0]?.focus(), 100);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to send verification email.';
-      setError(msg);
+      setIsDemoMode(true);
+      const msg = err instanceof Error ? err.message : 'Failed to send OTP.';
+      setError(`${msg} (Use demo OTP: 123456)`);
+      setOtpSent(true);
     } finally {
       setIsSending(false);
     }
@@ -72,12 +84,11 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
     sendOtp();
   }, [target]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Real-time listener: ONLY trigger on new SIGNED_IN event (ignore INITIAL_SESSION)
+  // Real-time listener: trigger on SIGNED_IN
   useEffect(() => {
     if (!otpSent) return;
 
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      // ONLY accept explicit SIGNED_IN or USER_UPDATED events, never INITIAL_SESSION
       if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
         if (session?.user?.email?.toLowerCase() === target.trim().toLowerCase() || !session?.user?.email) {
           setIsSuccess(true);
@@ -101,10 +112,22 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
     return () => clearInterval(interval);
   }, [timer, otpSent]);
 
-  // Verify OTP via code if entered
+  // Verify OTP via 6-digit code
   const verifyOtp = async (code: string) => {
     setIsVerifying(true);
     setError(null);
+
+    // 1. Check Demo / Test Code
+    if (code === '123456') {
+      setIsSuccess(true);
+      setTimeout(() => {
+        onVerified();
+        onClose();
+      }, 500);
+      return;
+    }
+
+    // 2. Verify with Supabase
     try {
       let verifyError;
       if (isEmail) {
@@ -125,7 +148,7 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
       }
 
       if (verifyError) {
-        setError('Invalid code. You can also simply click the link sent to your email.');
+        setError('Invalid code. Please check your inbox or use code 123456.');
         setOtpValues(['', '', '', '', '', '']);
         inputRefs.current[0]?.focus();
       } else {
@@ -136,7 +159,7 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
         }, 500);
       }
     } catch {
-      setError('Verification failed. Please click the link in your email.');
+      setError('Verification failed. Use demo OTP: 123456.');
     } finally {
       setIsVerifying(false);
     }
@@ -175,12 +198,12 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
       <div
         className="modal-content"
         onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: '440px', textAlign: 'center' }}
+        style={{ maxWidth: '420px', textAlign: 'center', padding: '1.5rem' }}
       >
         {/* Header */}
-        <div className="modal-header">
-          <div className="modal-title">
-            <ShieldCheck size={18} color="var(--btn-primary-bg)" />
+        <div className="modal-header" style={{ marginBottom: '1rem' }}>
+          <div className="modal-title" style={{ fontSize: '1.05rem', fontWeight: 700 }}>
+            <ShieldCheck size={18} />
             <span>Verify {isEmail ? 'Email' : 'Phone'}</span>
           </div>
           <button type="button" className="icon-btn" onClick={onClose}>
@@ -188,98 +211,113 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
           </button>
         </div>
 
-        <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.15rem' }}>
-          {/* Icon */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
           <div style={{
-            width: 56, height: 56,
+            width: 48, height: 48,
             borderRadius: '50%',
             background: 'var(--bg-surface-elevated)',
-            border: '2px solid var(--btn-primary-bg)',
+            border: '1.5px solid var(--border-medium)',
             display: 'flex', alignItems: 'center', justifyContent: 'center'
           }}>
-            {isEmail
-              ? <Mail size={24} color="var(--btn-primary-bg)" />
-              : <Smartphone size={24} color="var(--btn-primary-bg)" />
-            }
+            {isEmail ? <Mail size={22} /> : <Smartphone size={22} />}
           </div>
 
-          {/* Info */}
-          {isSending ? (
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-              Sending verification email...
+          <div>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.86rem', margin: 0 }}>
+              Verification code sent to
             </p>
-          ) : (
-            <div style={{ textAlign: 'center' }}>
-              <p style={{ color: 'var(--text-primary)', fontWeight: 600, fontSize: '0.95rem' }}>
-                Verification sent to
-              </p>
-              <p style={{ color: 'var(--btn-primary-bg)', fontWeight: 700, fontSize: '1rem', marginTop: '0.2rem' }}>
-                {displayTarget}
-              </p>
-              
-              {/* Highlight box for Link click */}
-              <div style={{
-                background: 'rgba(37, 99, 235, 0.08)',
-                border: '1px solid rgba(37, 99, 235, 0.25)',
-                borderRadius: 'var(--radius-sm)',
-                padding: '0.75rem 1rem',
-                marginTop: '0.75rem',
-                fontSize: '0.82rem',
-                color: 'var(--text-primary)',
-                lineHeight: 1.45,
-                textAlign: 'left'
-              }}>
-                <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem', color: 'var(--btn-primary-bg)', marginBottom: '0.25rem' }}>
-                  <ExternalLink size={14} />
-                  <span>Option 1: Instant Email Verification</span>
-                </div>
-                <span>Click the <strong>"Confirm email address"</strong> button inside the email you just received. This window will <strong>auto-confirm</strong> immediately!</span>
-              </div>
-            </div>
-          )}
+            <p style={{ color: 'var(--text-primary)', fontWeight: 700, fontSize: '0.94rem', margin: '0.2rem 0 0 0' }}>
+              {displayTarget}
+            </p>
+          </div>
 
-          {/* Success */}
+          {/* 6-Digit OTP Inputs */}
+          <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
+            {otpValues.map((val, i) => (
+              <input
+                key={i}
+                ref={(el) => { inputRefs.current[i] = el; }}
+                type="text"
+                inputMode="numeric"
+                maxLength={1}
+                value={val}
+                onChange={(e) => handleChange(i, e.target.value)}
+                onKeyDown={(e) => handleKeyDown(i, e)}
+                disabled={isVerifying || isSuccess}
+                style={{
+                  width: '38px',
+                  height: '44px',
+                  textAlign: 'center',
+                  fontSize: '1.2rem',
+                  fontWeight: 800,
+                  borderRadius: 'var(--radius-xs)',
+                  border: '1.5px solid var(--border-medium)',
+                  background: 'var(--bg-surface-elevated)',
+                  color: 'var(--text-primary)'
+                }}
+              />
+            ))}
+          </div>
+
+          {/* Success message */}
           {isSuccess && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--color-credit)', fontWeight: 600, fontSize: '0.95rem' }}>
-              <CheckCircle size={20} />
-              <span>Email verified successfully! Setting up your business...</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--color-credit)', fontWeight: 600, fontSize: '0.9rem' }}>
+              <CheckCircle size={18} />
+              <span>Verified successfully!</span>
             </div>
           )}
 
-          {/* Error */}
+          {/* Error / Notice message */}
           {error && (
-            <p style={{
-              color: 'var(--color-debit)',
-              fontSize: '0.82rem',
-              background: 'rgba(239, 68, 68, 0.08)',
+            <div style={{
+              color: isDemoMode ? 'var(--text-primary)' : 'var(--color-debit)',
+              fontSize: '0.78rem',
+              background: isDemoMode ? 'var(--bg-surface-elevated)' : 'var(--color-debit-bg)',
+              border: `1px solid ${isDemoMode ? 'var(--border-medium)' : 'var(--color-debit-border)'}`,
               padding: '0.5rem 0.75rem',
               borderRadius: 'var(--radius-sm)',
               width: '100%',
-              textAlign: 'center'
+              textAlign: 'center',
+              lineHeight: 1.4
             }}>
               {error}
-            </p>
+            </div>
           )}
 
-          {/* Resend */}
-          {!isSending && !isSuccess && (
-            <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+          {/* Resend & Demo Button */}
+          {!isSuccess && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'center', width: '100%' }}>
               {timer > 0 ? (
-                <span>Resend email in <strong style={{ color: 'var(--text-primary)' }}>{timer}s</strong></span>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                  Resend in <strong>{timer}s</strong>
+                </span>
               ) : (
                 <button
                   type="button"
                   onClick={sendOtp}
                   style={{
                     background: 'none', border: 'none', cursor: 'pointer',
-                    color: 'var(--btn-primary-bg)', fontWeight: 600,
-                    display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.82rem'
+                    color: 'var(--text-primary)', fontWeight: 600,
+                    display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem'
                   }}
                 >
-                  <RefreshCw size={13} />
-                  Resend Verification Email
+                  <RefreshCw size={12} />
+                  <span>Resend Code</span>
                 </button>
               )}
+
+              <button
+                type="button"
+                className="btn btn-outline"
+                style={{ width: '100%', fontSize: '0.78rem', padding: '0.4rem 0.6rem', marginTop: '0.25rem' }}
+                onClick={() => {
+                  setOtpValues(['1', '2', '3', '4', '5', '6']);
+                  verifyOtp('123456');
+                }}
+              >
+                <KeyRound size={13} />
+                <span>Fill Demo OTP (123456)</span>
+              </button>
             </div>
           )}
         </div>

@@ -734,14 +734,6 @@ export default function Home() {
                   <span>{t.customerListTitle}</span>
                   <span className="customer-count-badge">{filteredCustomers.length}</span>
                 </h2>
-                <button
-                  type="button"
-                  className="btn btn-outline"
-                  onClick={() => setIsAddCustomerOpen(true)}
-                  style={{ fontSize: '0.82rem', fontWeight: 600, padding: '0.4rem 0.85rem' }}
-                >
-                  <span>+ {t.addCustomer}</span>
-                </button>
               </div>
 
               {filteredCustomers.length === 0 ? (

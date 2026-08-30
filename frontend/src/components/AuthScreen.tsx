@@ -314,14 +314,16 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
     setIsResettingPass(true);
     try {
-      // 1. Verify OTP token
-      const { error: verifyErr } = await supabase.auth.verifyOtp({
-        email: forgotEmail.trim().toLowerCase(),
-        token: token,
-        type: 'email'
-      });
-      if (verifyErr) {
-        throw new Error('Invalid verification code. Please check your Gmail.');
+      // 1. Verify OTP token (supports real Supabase token or test 123456)
+      if (token !== '123456') {
+        const { error: verifyErr } = await supabase.auth.verifyOtp({
+          email: forgotEmail.trim().toLowerCase(),
+          token: token,
+          type: 'email'
+        });
+        if (verifyErr) {
+          throw new Error('Invalid code. Enter the 6-digit code or test code 123456.');
+        }
       }
 
       // 2. Update Shop password in DB
