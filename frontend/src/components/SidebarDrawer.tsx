@@ -306,7 +306,7 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
             </div>
           </div>
 
-          {/* Multi-Shop Switcher & Demo Accounts */}
+          {/* Multi-Shop Switcher */}
           <div className="sidebar-nav-group">
             <div className="sidebar-section-title">
               {t.switchShop}

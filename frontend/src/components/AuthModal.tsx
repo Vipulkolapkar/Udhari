@@ -139,13 +139,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         }
       });
       if (error) {
-        setOtpError(`${error.message} (For testing, use code: 123456)`);
+        setOtpError(error.message || 'Unable to send code.');
       }
       setOtpSent(true);
       setOtpTimer(60);
       setRegOtpCode('');
     } catch {
-      setOtpError('Failed to send verification code. (Use code: 123456)');
+      setOtpError('Failed to send verification code. Please try again.');
       setOtpSent(true);
     } finally {
       setIsSendingOtp(false);
@@ -159,12 +159,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setIsVerifyingOtp(true);
     setOtpError(null);
 
-    if (token === '123456') {
-      setIsEmailVerified(true);
-      setOtpError(null);
-      setIsVerifyingOtp(false);
-      return;
-    }
+
 
     try {
       const { error } = await supabase.auth.verifyOtp({
@@ -173,12 +168,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         type: 'email'
       });
       if (error) {
-        setOtpError('Invalid code. Check your Gmail or enter 123456.');
+        setOtpError('Invalid verification code. Please check and try again.');
       } else {
         setIsEmailVerified(true);
       }
     } catch {
-      setOtpError('Verification failed. Use demo code: 123456.');
+      setOtpError('Verification failed. Please check your code.');
     } finally {
       setIsVerifyingOtp(false);
     }
@@ -218,9 +213,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       });
       if (error) {
         if (error.message.toLowerCase().includes('magic link') || error.message.toLowerCase().includes('validation')) {
-          setErrorMessage('Resend sandbox only sends to your Resend signup email. To send to all emails, add a domain in Resend or use Gmail SMTP. (For testing, use code: 123456)');
+          setErrorMessage('Unable to send verification email.');
         } else {
-          setErrorMessage(`${error.message} (For testing, use code: 123456)`);
+          setErrorMessage(`${error.message}`);
         }
       }
 
@@ -246,11 +241,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setIsVerifyingForgotOtp(true);
     setErrorMessage(null);
 
-    if (token === '123456') {
-      setForgotStep('NEW_PASSWORD');
-      setIsVerifyingForgotOtp(false);
-      return;
-    }
+
 
     try {
       const { error: verifyErr } = await supabase.auth.verifyOtp({
@@ -259,7 +250,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         type: 'email'
       });
       if (verifyErr) {
-        throw new Error('Invalid code. Check your Gmail or enter 123456.');
+        throw new Error('Invalid verification code. Please check your inbox and try again.');
       }
       setForgotStep('NEW_PASSWORD');
     } catch (err: unknown) {

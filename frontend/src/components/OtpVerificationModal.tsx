@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { X, ShieldCheck, Mail, Smartphone, RefreshCw, CheckCircle, KeyRound, Loader2, ArrowRight } from 'lucide-react';
+import { X, ShieldCheck, Mail, Smartphone, RefreshCw, CheckCircle, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface OtpVerificationModalProps {
@@ -25,7 +25,6 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
   const [timer, setTimer] = useState(60);
   const [otpSent, setOtpSent] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
-  const [isDemoMode, setIsDemoMode] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -38,7 +37,6 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
   const sendOtp = async () => {
     setIsSending(true);
     setError(null);
-    setIsDemoMode(false);
 
     try {
       if (isEmail) {
@@ -50,20 +48,13 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
           }
         });
         if (emailError) {
-          if (emailError.message.toLowerCase().includes('rate limit')) {
-            setIsDemoMode(true);
-            setError('Supabase email limit reached (max 3/hr on default plan). Use demo OTP: 123456');
-          } else {
-            setIsDemoMode(true);
-            setError(`${emailError.message}. For testing, you can use OTP: 123456`);
-          }
+          setError(emailError.message || 'Unable to send verification code. Please try again.');
         }
       } else {
         const phone = target.startsWith('+') ? target : `+91${target.replace(/\D/g, '')}`;
         const { error: phoneError } = await supabase.auth.signInWithOtp({ phone });
         if (phoneError) {
-          setIsDemoMode(true);
-          setError('Phone SMS requires Twilio/SMS gateway in Supabase. For testing, use demo OTP: 123456');
+          setError(phoneError.message || 'Unable to send SMS verification code.');
         }
       }
 
@@ -71,9 +62,8 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
       setTimer(60);
       setTimeout(() => inputRef.current?.focus(), 100);
     } catch (err: unknown) {
-      setIsDemoMode(true);
-      const msg = err instanceof Error ? err.message : 'Failed to send OTP.';
-      setError(`${msg} (Use demo OTP: 123456)`);
+      const msg = err instanceof Error ? err.message : 'Failed to send verification code.';
+      setError(msg);
       setOtpSent(true);
     } finally {
       setIsSending(false);
@@ -91,7 +81,7 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
     return () => clearInterval(interval);
   }, [timer, otpSent]);
 
-  // Verify OTP via token (supports 6 to 8 digits)
+  // Strict Supabase OTP Verification
   const handleVerify = async (codeToVerify: string) => {
     const cleanToken = codeToVerify.trim();
     if (!cleanToken) return;
@@ -99,17 +89,6 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
     setIsVerifying(true);
     setError(null);
 
-    // 1. Check Demo / Test Code
-    if (cleanToken === '123456') {
-      setIsSuccess(true);
-      setTimeout(() => {
-        onVerified();
-        onClose();
-      }, 500);
-      return;
-    }
-
-    // 2. Verify with Supabase
     try {
       let verifyError;
       if (isEmail) {
@@ -130,7 +109,7 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
       }
 
       if (verifyError) {
-        setError('Invalid verification code. Please check your email or enter 123456.');
+        setError('Invalid verification code. Please check the code and try again.');
       } else {
         setIsSuccess(true);
         setTimeout(() => {
@@ -139,7 +118,7 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
         }, 500);
       }
     } catch {
-      setError('Verification failed. Use demo OTP: 123456.');
+      setError('Verification failed. Please check your code and try again.');
     } finally {
       setIsVerifying(false);
     }
@@ -160,7 +139,7 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
       <div
         className="modal-content"
         onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: '400px', textAlign: 'center', padding: '1.5rem' }}
+        style={{ maxWidth: '380px', textAlign: 'center', padding: '1.5rem' }}
       >
         {/* Header */}
         <div className="modal-header" style={{ marginBottom: '0.75rem' }}>
@@ -193,7 +172,7 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
             </p>
           </div>
 
-          {/* Normal Standard Code Input */}
+          {/* Standard Code Input */}
           <div style={{ width: '100%', maxWidth: '240px' }}>
             <input
               ref={inputRef}
@@ -262,12 +241,12 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
             </div>
           )}
 
-          {/* Resend & Demo Button */}
+          {/* Resend Link */}
           {!isSuccess && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', alignItems: 'center', width: '100%' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', alignItems: 'center', width: '100%' }}>
               {timer > 0 ? (
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  Resend in <strong>{timer}s</strong>
+                  Resend code in <strong>{timer}s</strong>
                 </span>
               ) : (
                 <button
@@ -283,19 +262,6 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
                   <span>Resend Code</span>
                 </button>
               )}
-
-              <button
-                type="button"
-                className="btn btn-outline"
-                style={{ width: '100%', maxWidth: '240px', fontSize: '0.75rem', padding: '0.35rem 0.55rem', marginTop: '0.2rem' }}
-                onClick={() => {
-                  setCode('123456');
-                  handleVerify('123456');
-                }}
-              >
-                <KeyRound size={12} />
-                <span>Fill Demo OTP (123456)</span>
-              </button>
             </div>
           )}
         </div>
