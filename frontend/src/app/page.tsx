@@ -543,7 +543,7 @@ export default function Home() {
         currentView={currentView}
         currentShop={currentShop}
         onToggle={handleToggleSidebar}
-        onSelectView={setCurrentView}
+        onSelectView={(view) => { setToastMessage(null); setCurrentView(view); }}
         onLogout={() => setIsSignOutConfirmOpen(true)}
       />
 
@@ -627,7 +627,7 @@ export default function Home() {
             customers={customers}
             invoices={invoices}
             payments={payments}
-            onBackToDashboard={() => setCurrentView('DASHBOARD')}
+            onBackToDashboard={() => { setToastMessage(null); setCurrentView('DASHBOARD'); }}
             onSaveShopSettings={handleSaveShopSettings}
           />
         ) : (
@@ -638,7 +638,7 @@ export default function Home() {
             customers={customers}
             invoices={invoices}
             payments={payments}
-            onBackToDashboard={() => setCurrentView('DASHBOARD')}
+            onBackToDashboard={() => { setToastMessage(null); setCurrentView('DASHBOARD'); }}
             onLanguageChange={handleLanguageChange}
             onThemeChange={handleThemeChange}
             onSaveShopSettings={handleSaveShopSettings}

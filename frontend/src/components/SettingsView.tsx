@@ -94,6 +94,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     try {
       await onSaveShopSettings({ password: newPassword });
       setPasswordMsg({ type: 'success', text: 'Password updated successfully.' });
+      setTimeout(() => setPasswordMsg(null), 3000);
       setOldPassword('');
       setNewPassword('');
       setConfirmPassword('');
@@ -246,7 +247,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 cursor: 'pointer',
                 textAlign: 'left'
               }}
-              onClick={() => setActiveTab('APPEARANCE')}
+              onClick={() => { setPasswordMsg(null); setActiveTab('APPEARANCE'); }}
             >
               <Moon size={16} />
               <span>Appearance</span>
@@ -268,7 +269,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 cursor: 'pointer',
                 textAlign: 'left'
               }}
-              onClick={() => setActiveTab('SECURITY')}
+              onClick={() => { setPasswordMsg(null); setActiveTab('SECURITY'); }}
             >
               <Shield size={16} />
               <span>Security</span>
@@ -290,7 +291,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 cursor: 'pointer',
                 textAlign: 'left'
               }}
-              onClick={() => setActiveTab('DATA')}
+              onClick={() => { setPasswordMsg(null); setActiveTab('DATA'); }}
             >
               <RotateCcw size={16} />
               <span>Data</span>
