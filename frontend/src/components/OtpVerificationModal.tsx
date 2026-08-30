@@ -91,7 +91,7 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
     return () => clearInterval(interval);
   }, [timer, otpSent]);
 
-  // Verify OTP via token (supports 6 to 8 characters/digits)
+  // Verify OTP via token (supports 6 to 8 digits)
   const handleVerify = async (codeToVerify: string) => {
     const cleanToken = codeToVerify.trim();
     if (!cleanToken) return;
@@ -146,12 +146,10 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
   };
 
   const handleInputChange = (val: string) => {
-    // Allow up to 10 alphanumeric characters (supports 6 or 8 digits)
-    const clean = val.replace(/[^a-zA-Z0-9]/g, '').slice(0, 10);
+    const clean = val.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8);
     setCode(clean);
     setError(null);
 
-    // Auto-trigger verify when 6 or 8 digits entered
     if (clean.length === 6 || clean.length === 8) {
       handleVerify(clean);
     }
@@ -162,12 +160,12 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
       <div
         className="modal-content"
         onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: '420px', textAlign: 'center', padding: '1.5rem' }}
+        style={{ maxWidth: '400px', textAlign: 'center', padding: '1.5rem' }}
       >
         {/* Header */}
-        <div className="modal-header" style={{ marginBottom: '1rem' }}>
-          <div className="modal-title" style={{ fontSize: '1.05rem', fontWeight: 700 }}>
-            <ShieldCheck size={18} />
+        <div className="modal-header" style={{ marginBottom: '0.75rem' }}>
+          <div className="modal-title" style={{ fontSize: '1rem', fontWeight: 700 }}>
+            <ShieldCheck size={16} />
             <span>Verify {isEmail ? 'Email' : 'Phone'}</span>
           </div>
           <button type="button" className="icon-btn" onClick={onClose}>
@@ -175,33 +173,33 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
           </button>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.85rem' }}>
           <div style={{
-            width: 48, height: 48,
+            width: 42, height: 42,
             borderRadius: '50%',
             background: 'var(--bg-surface-elevated)',
-            border: '1.5px solid var(--border-medium)',
+            border: '1px solid var(--border-medium)',
             display: 'flex', alignItems: 'center', justifyContent: 'center'
           }}>
-            {isEmail ? <Mail size={22} /> : <Smartphone size={22} />}
+            {isEmail ? <Mail size={18} /> : <Smartphone size={18} />}
           </div>
 
           <div>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.86rem', margin: 0 }}>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', margin: 0 }}>
               Verification code sent to
             </p>
-            <p style={{ color: 'var(--text-primary)', fontWeight: 700, fontSize: '0.94rem', margin: '0.2rem 0 0 0' }}>
+            <p style={{ color: 'var(--text-primary)', fontWeight: 600, fontSize: '0.9rem', margin: '0.15rem 0 0 0' }}>
               {displayTarget}
             </p>
           </div>
 
-          {/* Flexible 6 to 8 Character Code Input */}
-          <div style={{ width: '100%', maxWidth: '300px' }}>
+          {/* Normal Standard Code Input */}
+          <div style={{ width: '100%', maxWidth: '240px' }}>
             <input
               ref={inputRef}
               type="text"
               className="form-input"
-              placeholder="Enter 6 or 8 digit code"
+              placeholder="Enter code"
               value={code}
               onChange={(e) => handleInputChange(e.target.value)}
               onKeyDown={(e) => {
@@ -214,13 +212,10 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
               autoFocus
               style={{
                 textAlign: 'center',
-                fontSize: '1.35rem',
-                fontWeight: 800,
-                letterSpacing: '4px',
-                height: '48px',
-                color: 'var(--text-primary)',
-                background: 'var(--bg-surface-elevated)',
-                border: '2px solid var(--border-medium)'
+                fontSize: '1.05rem',
+                fontWeight: 600,
+                letterSpacing: '2px',
+                height: '40px'
               }}
             />
           </div>
@@ -231,41 +226,37 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
             className="btn btn-primary"
             disabled={!code || isVerifying || isSuccess}
             onClick={() => handleVerify(code)}
-            style={{ width: '100%', maxWidth: '300px', fontWeight: 700, padding: '0.65rem 1rem' }}
+            style={{ width: '100%', maxWidth: '240px', fontWeight: 600, padding: '0.55rem 0.85rem', fontSize: '0.84rem' }}
           >
             {isVerifying ? (
               <>
-                <Loader2 size={15} style={{ animation: 'spin 0.8s linear infinite' }} />
+                <Loader2 size={14} style={{ animation: 'spin 0.8s linear infinite' }} />
                 <span>Verifying...</span>
               </>
             ) : (
-              <>
-                <span>Verify Code</span>
-                <ArrowRight size={14} />
-              </>
+              <span>Verify Code</span>
             )}
           </button>
 
           {/* Success message */}
           {isSuccess && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--color-credit)', fontWeight: 600, fontSize: '0.9rem' }}>
-              <CheckCircle size={18} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: 'var(--color-credit)', fontWeight: 600, fontSize: '0.85rem' }}>
+              <CheckCircle size={16} />
               <span>Verified successfully!</span>
             </div>
           )}
 
-          {/* Error / Notice message */}
+          {/* Error message */}
           {error && (
             <div style={{
-              color: isDemoMode ? 'var(--text-primary)' : 'var(--color-debit)',
+              color: 'var(--color-debit)',
               fontSize: '0.78rem',
-              background: isDemoMode ? 'var(--bg-surface-elevated)' : 'var(--color-debit-bg)',
-              border: `1px solid ${isDemoMode ? 'var(--border-medium)' : 'var(--color-debit-border)'}`,
-              padding: '0.5rem 0.75rem',
+              background: 'var(--color-debit-bg)',
+              border: '1px solid var(--color-debit-border)',
+              padding: '0.45rem 0.65rem',
               borderRadius: 'var(--radius-sm)',
               width: '100%',
-              textAlign: 'center',
-              lineHeight: 1.4
+              textAlign: 'center'
             }}>
               {error}
             </div>
@@ -273,9 +264,9 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
 
           {/* Resend & Demo Button */}
           {!isSuccess && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'center', width: '100%' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', alignItems: 'center', width: '100%' }}>
               {timer > 0 ? (
-                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                   Resend in <strong>{timer}s</strong>
                 </span>
               ) : (
@@ -285,10 +276,10 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
                   style={{
                     background: 'none', border: 'none', cursor: 'pointer',
                     color: 'var(--text-primary)', fontWeight: 600,
-                    display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem'
+                    display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.78rem'
                   }}
                 >
-                  <RefreshCw size={12} />
+                  <RefreshCw size={11} />
                   <span>Resend Code</span>
                 </button>
               )}
@@ -296,13 +287,13 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
               <button
                 type="button"
                 className="btn btn-outline"
-                style={{ width: '100%', maxWidth: '300px', fontSize: '0.78rem', padding: '0.4rem 0.6rem' }}
+                style={{ width: '100%', maxWidth: '240px', fontSize: '0.75rem', padding: '0.35rem 0.55rem', marginTop: '0.2rem' }}
                 onClick={() => {
                   setCode('123456');
                   handleVerify('123456');
                 }}
               >
-                <KeyRound size={13} />
+                <KeyRound size={12} />
                 <span>Fill Demo OTP (123456)</span>
               </button>
             </div>

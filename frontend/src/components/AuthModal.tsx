@@ -984,8 +984,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                         }}
                         style={{
                           textAlign: 'center',
-                          fontSize: '1.25rem',
-                          fontWeight: 800,
+                          fontSize: '1rem',
+                          fontWeight: 600,
                           letterSpacing: '3px',
                           height: '44px',
                           color: 'var(--text-primary)'
