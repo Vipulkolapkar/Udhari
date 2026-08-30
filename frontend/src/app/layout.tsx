@@ -5,7 +5,7 @@ export const metadata: Metadata = {
   title: "Udhari",
   description: "Retail credit & ledger tracking system for stationery and kirana shops with FIFO payment allocation and WhatsApp reminders.",
   keywords: ["khata", "udhaar", "stationery ledger", "vyapar", "credit tracker"],
-  authors: [{ name: "Kolapkar Stationery" }],
+  authors: [{ name: "Udhari" }],
   icons: {
     icon: "/favicon.ico",
   }

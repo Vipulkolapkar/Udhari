@@ -84,7 +84,7 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
               <input
                 type="text"
                 className="form-input"
-                placeholder="e.g. Ramesh Sharma"
+                placeholder="e.g. John Doe"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
@@ -101,7 +101,7 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
                 inputMode="numeric"
                 pattern="[0-9]{10}"
                 className="form-input"
-                placeholder="e.g. 9822014589"
+                placeholder="e.g. 9876543210"
                 value={phone}
                 onChange={(e) => handlePhoneChange(e.target.value)}
                 maxLength={10}

@@ -731,7 +731,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               <input
                 type="text"
                 className="form-input"
-                placeholder="e.g. Ramesh Kirana & General Store"
+                placeholder="e.g. Sample Kirana & General Store"
                 value={shopName}
                 onChange={(e) => setShopName(e.target.value)}
                 required
@@ -744,7 +744,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               <input
                 type="text"
                 className="form-input"
-                placeholder="e.g. Ramesh Sharma"
+                placeholder="e.g. John Doe"
                 value={ownerName}
                 onChange={(e) => setOwnerName(e.target.value)}
                 required
@@ -756,7 +756,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               <input
                 type="tel"
                 className="form-input"
-                placeholder="9822014589"
+                placeholder="9876543210"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
                 maxLength={10}
