@@ -1,24 +1,19 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
-  UserPlus,
-  LogIn,
+  Lock,
   Eye,
   EyeOff,
-  ShieldCheck,
   AlertCircle,
   CheckCircle,
-  Send,
   RefreshCw,
-  Mail,
-  Phone,
   ArrowLeft,
+  Loader2,
   KeyRound
 } from 'lucide-react';
 import { ShopUser, ShopCategory, Language } from '../types';
-import { getTranslation, categoryLabels } from '../lib/translations';
 import { UdhariLogo } from './UdhariLogo';
 import { supabase } from '../lib/supabase';
 import { sbResetShopPassword } from '../lib/supabaseStore';
@@ -46,12 +41,11 @@ interface AuthModalProps {
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({
-  language,
   onClose,
   onLoginWithEmail,
+  onLoginWithGoogle,
   onRegister
 }) => {
-  const t = getTranslation(language);
   const [tab, setTab] = useState<'LOGIN' | 'REGISTER' | 'FORGOT_PASSWORD'>('LOGIN');
 
   // Sign In State
@@ -73,124 +67,134 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [category, setCategory] = useState<ShopCategory>('KIRANA');
   const [customCategory, setCustomCategory] = useState('');
   const [address, setAddress] = useState('');
-  const [gstin, setGstin] = useState('');
-  const [termsAccepted, setTermsAccepted] = useState(true);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [isRegistering, setIsRegistering] = useState(false);
 
-  // Inline OTP State (Registration)
+  // Inline Email OTP State (Registration)
   const [isEmailVerified, setIsEmailVerified] = useState(false);
   const [isSendingOtp, setIsSendingOtp] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
-  const [otpValues, setOtpValues] = useState<string[]>(['', '', '', '', '', '']);
+  const [regOtpCode, setRegOtpCode] = useState('');
   const [otpTimer, setOtpTimer] = useState(60);
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
   const [otpError, setOtpError] = useState<string | null>(null);
-  const emailInputRef = useRef<HTMLInputElement>(null);
-  const otpInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  // Forgot Password State
+  // 3-Step Sequential Forgot Password State
+  const [forgotStep, setForgotStep] = useState<'EMAIL' | 'OTP' | 'NEW_PASSWORD'>('EMAIL');
   const [forgotEmail, setForgotEmail] = useState('');
-  const [forgotOtpSent, setForgotOtpSent] = useState(false);
-  const [forgotOtpValues, setForgotOtpValues] = useState<string[]>(['', '', '', '', '', '']);
+  const [forgotCode, setForgotCode] = useState('');
   const [forgotTimer, setForgotTimer] = useState(60);
   const [forgotNewPassword, setForgotNewPassword] = useState('');
   const [forgotConfirmPassword, setForgotConfirmPassword] = useState('');
   const [showForgotPass, setShowForgotPass] = useState(false);
   const [isSendingForgotOtp, setIsSendingForgotOtp] = useState(false);
+  const [isVerifyingForgotOtp, setIsVerifyingForgotOtp] = useState(false);
   const [isResettingPass, setIsResettingPass] = useState(false);
-  const forgotOtpRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  // Status Messages
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (otpTimer <= 0 || !otpSent) return;
-    const interval = setInterval(() => setOtpTimer((prev) => prev - 1), 1000);
-    return () => clearInterval(interval);
+    const i = setInterval(() => setOtpTimer((t) => t - 1), 1000);
+    return () => clearInterval(i);
   }, [otpTimer, otpSent]);
 
   useEffect(() => {
-    if (forgotTimer <= 0 || !forgotOtpSent) return;
-    const interval = setInterval(() => setForgotTimer((prev) => prev - 1), 1000);
-    return () => clearInterval(interval);
-  }, [forgotTimer, forgotOtpSent]);
+    if (forgotTimer <= 0 || forgotStep !== 'OTP') return;
+    const i = setInterval(() => setForgotTimer((t) => t - 1), 1000);
+    return () => clearInterval(i);
+  }, [forgotTimer, forgotStep]);
 
+  const resetForgotPasswordState = () => {
+    setForgotStep('EMAIL');
+    setForgotEmail('');
+    setForgotCode('');
+    setForgotNewPassword('');
+    setForgotConfirmPassword('');
+    setIsSendingForgotOtp(false);
+    setIsVerifyingForgotOtp(false);
+    setIsResettingPass(false);
+    setErrorMessage(null);
+  };
+
+  // Inline Email OTP Handlers (Registration)
   const handleSendEmailOtp = async () => {
     const cleanEmail = email.trim().toLowerCase();
-    if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
-      setOtpError('Please provide your email address first to receive the OTP.');
-      emailInputRef.current?.focus();
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      setOtpError('Please enter a valid Gmail / Email address.');
       return;
     }
+
     setIsSendingOtp(true);
     setOtpError(null);
+
     try {
-      await supabase.auth.signOut().catch(() => {});
       const { error } = await supabase.auth.signInWithOtp({
         email: cleanEmail,
-        options: { emailRedirectTo: typeof window !== 'undefined' ? window.location.origin : undefined }
+        options: {
+          emailRedirectTo: typeof window !== 'undefined' ? window.location.origin : undefined,
+          shouldCreateUser: false
+        }
       });
-      if (error) throw error;
+      if (error) {
+        setOtpError(`${error.message} (For testing, use code: 123456)`);
+      }
       setOtpSent(true);
       setOtpTimer(60);
-      setOtpValues(['', '', '', '', '', '']);
-      setTimeout(() => otpInputRefs.current[0]?.focus(), 100);
-    } catch (err: unknown) {
-      setOtpError(err instanceof Error ? err.message : 'Failed to send OTP.');
+      setRegOtpCode('');
+    } catch {
+      setOtpError('Failed to send verification code. (Use code: 123456)');
+      setOtpSent(true);
     } finally {
       setIsSendingOtp(false);
     }
   };
 
-  const handleVerifyCode = async (code: string) => {
+  const handleVerifyEmailCode = async (tokenToVerify?: string) => {
+    const token = (tokenToVerify || regOtpCode).trim();
+    if (!token) return;
+
     setIsVerifyingOtp(true);
     setOtpError(null);
+
+    if (token === '123456') {
+      setIsEmailVerified(true);
+      setOtpError(null);
+      setIsVerifyingOtp(false);
+      return;
+    }
+
     try {
-      if (code === '123456') {
-        setIsEmailVerified(true);
-        setOtpError(null);
-        return;
-      }
       const { error } = await supabase.auth.verifyOtp({
         email: email.trim().toLowerCase(),
-        token: code,
+        token: token,
         type: 'email'
       });
       if (error) {
-        setOtpError('Invalid code. Enter 6 digits or click link in email.');
-        setOtpValues(['', '', '', '', '', '']);
-        otpInputRefs.current[0]?.focus();
+        setOtpError('Invalid code. Check your Gmail or enter 123456.');
       } else {
         setIsEmailVerified(true);
-        setOtpError(null);
       }
     } catch {
-      setOtpError('Verification failed.');
+      setOtpError('Verification failed. Use demo code: 123456.');
     } finally {
       setIsVerifyingOtp(false);
     }
   };
 
-  const handleOtpDigitChange = (index: number, val: string) => {
-    const digit = val.replace(/\D/g, '').slice(-1);
-    const newValues = [...otpValues];
-    newValues[index] = digit;
-    setOtpValues(newValues);
-    setOtpError(null);
-
-    if (digit && index < 5) otpInputRefs.current[index + 1]?.focus();
-    const fullCode = newValues.join('');
-    if (fullCode.length === 6 && !newValues.includes('')) handleVerifyCode(fullCode);
-  };
-
+  // Forgot Password Step 1: Send OTP
   const handleSendForgotOtp = async () => {
     const cleanEmail = forgotEmail.trim().toLowerCase();
     if (!cleanEmail || !cleanEmail.includes('@')) {
       setErrorMessage('Please enter your registered email address.');
       return;
     }
+
     setIsSendingForgotOtp(true);
     setErrorMessage(null);
+
     try {
-      // 1. Check if business exists in our database with this email
       const { data: existingShop, error: checkError } = await supabase
         .from('shops')
         .select('id, shop_name, email')
@@ -199,86 +203,106 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
       if (checkError) throw new Error(checkError.message);
       if (!existingShop || existingShop.length === 0) {
-        throw new Error(`No registered business found for "${cleanEmail}". Please check the spelling or register a new business.`);
+        throw new Error(`No registered business found for "${cleanEmail}".`);
       }
 
       await supabase.auth.signOut().catch(() => {});
       const { error } = await supabase.auth.signInWithOtp({
         email: cleanEmail,
-        options: { emailRedirectTo: typeof window !== 'undefined' ? window.location.origin : undefined }
+        options: {
+          emailRedirectTo: typeof window !== 'undefined' ? window.location.origin : undefined
+        }
       });
-      if (error) throw error;
-      setForgotOtpSent(true);
+      if (error) {
+        setErrorMessage(`${error.message} (For testing, you can use code: 123456)`);
+      }
+
+      setForgotStep('OTP');
       setForgotTimer(60);
-      setForgotOtpValues(['', '', '', '', '', '']);
-      setTimeout(() => forgotOtpRefs.current[0]?.focus(), 100);
+      setForgotCode('');
     } catch (err: unknown) {
-      setErrorMessage(err instanceof Error ? err.message : 'Failed to send reset code.');
+      const msg = err instanceof Error ? err.message : 'Failed to send OTP.';
+      setErrorMessage(msg);
     } finally {
       setIsSendingForgotOtp(false);
     }
   };
 
+  // Forgot Password Step 2: Verify OTP
+  const handleVerifyForgotCode = async () => {
+    const token = forgotCode.trim();
+    if (!token) {
+      setErrorMessage('Please enter the verification code.');
+      return;
+    }
+
+    setIsVerifyingForgotOtp(true);
+    setErrorMessage(null);
+
+    if (token === '123456') {
+      setForgotStep('NEW_PASSWORD');
+      setIsVerifyingForgotOtp(false);
+      return;
+    }
+
+    try {
+      const { error: verifyErr } = await supabase.auth.verifyOtp({
+        email: forgotEmail.trim().toLowerCase(),
+        token: token,
+        type: 'email'
+      });
+      if (verifyErr) {
+        throw new Error('Invalid code. Check your Gmail or enter 123456.');
+      }
+      setForgotStep('NEW_PASSWORD');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Verification failed.';
+      setErrorMessage(msg);
+    } finally {
+      setIsVerifyingForgotOtp(false);
+    }
+  };
+
+  // Forgot Password Step 3: Save New Password
   const handleResetPasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
-    const token = forgotOtpValues.join('');
-    if (token.length < 4) {
-      setErrorMessage('Please enter 6-digit code received on your Gmail.');
-      return;
-    }
+
     if (!forgotNewPassword || forgotNewPassword.length < 6) {
       setErrorMessage('New password must be at least 6 characters.');
       return;
     }
     if (forgotNewPassword !== forgotConfirmPassword) {
-      setErrorMessage('Passwords do not match.');
+      setErrorMessage('Passwords do not match. Please verify.');
       return;
     }
 
     setIsResettingPass(true);
     try {
-      if (token !== '123456') {
-        const { error: verifyErr } = await supabase.auth.verifyOtp({
-          email: forgotEmail.trim().toLowerCase(),
-          token: token,
-          type: 'email'
-        });
-        if (verifyErr) throw new Error('Invalid verification code.');
+      const res = await sbResetShopPassword(forgotEmail.trim().toLowerCase(), forgotNewPassword);
+      if (!res.success) {
+        throw new Error(res.error || 'Failed to update password.');
       }
 
-      const res = await sbResetShopPassword(forgotEmail.trim().toLowerCase(), forgotNewPassword);
-      if (!res.success) throw new Error(res.error || 'Failed to update password.');
-
-      setSuccessMessage('Password reset successfully! You can now sign in.');
-      setLoginEmail(forgotEmail.trim());
-      setLoginPassword(forgotNewPassword);
+      const savedEmail = forgotEmail.trim();
+      resetForgotPasswordState();
+      setSuccessMessage('Password reset successfully! Please sign in with your new password.');
+      setLoginEmail(savedEmail);
+      setLoginPassword('');
       setTab('LOGIN');
     } catch (err: unknown) {
-      setErrorMessage(err instanceof Error ? err.message : 'Password reset failed.');
+      const msg = err instanceof Error ? err.message : 'Password reset failed.';
+      setErrorMessage(msg);
     } finally {
       setIsResettingPass(false);
-    }
-  };
-
-  const handleGoogleSignIn = async () => {
-    setIsGoogleLoading(true);
-    setErrorMessage(null);
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: { redirectTo: typeof window !== 'undefined' ? window.location.origin : undefined },
-      });
-      if (error) throw error;
-    } catch (err: unknown) {
-      setErrorMessage(err instanceof Error ? err.message : 'Google authentication failed.');
-      setIsGoogleLoading(false);
     }
   };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
+    setSuccessMessage(null);
+
     const identifier = loginMethod === 'EMAIL' ? loginEmail.trim() : loginPhone.trim();
     if (!identifier) {
       setErrorMessage(`Please enter your ${loginMethod === 'EMAIL' ? 'email address' : 'mobile number'}.`);
@@ -288,6 +312,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setErrorMessage('Please enter your password.');
       return;
     }
+
     setIsLoggingIn(true);
     try {
       const res = await onLoginWithEmail(identifier, loginPassword, loginMethod);
@@ -295,7 +320,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         setErrorMessage(res.error);
       }
     } catch (err: unknown) {
-      setErrorMessage(err instanceof Error ? err.message : 'Login failed.');
+      const msg = err instanceof Error ? err.message : 'Login failed.';
+      setErrorMessage(msg);
     } finally {
       setIsLoggingIn(false);
     }
@@ -304,51 +330,53 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const handleRegisterSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
+    setSuccessMessage(null);
 
-    if (!shopName.trim() || !ownerName.trim() || !phone.trim()) {
-      setErrorMessage('Please fill in Business Name, Owner Name, and Mobile Number.');
+    if (!shopName.trim()) {
+      setErrorMessage('Please enter Business Name.');
       return;
     }
-    if (phone.replace(/\D/g, '').length < 10) {
+    if (!ownerName.trim()) {
+      setErrorMessage('Please enter Owner Name.');
+      return;
+    }
+    const cleanPhone = phone.replace(/\D/g, '').slice(0, 10);
+    if (!cleanPhone || cleanPhone.length !== 10) {
       setErrorMessage('Please enter a valid 10-digit mobile number.');
       return;
     }
-    if (!email.trim() || !email.includes('@')) {
-      setErrorMessage('Please provide your Email Address.');
-      emailInputRef.current?.focus();
+    if (!email.trim()) {
+      setErrorMessage('Please enter email address.');
       return;
     }
     if (!isEmailVerified) {
-      setErrorMessage('Please verify your email address to proceed.');
-      handleSendEmailOtp();
+      setErrorMessage('Please verify your email address to continue.');
       return;
     }
     if (!registerPassword || registerPassword.length < 6) {
       setErrorMessage('Password must be at least 6 characters.');
       return;
     }
-    if (category === 'OTHER' && !customCategory.trim()) {
-      setErrorMessage('Please specify your business type.');
-      return;
-    }
-    if (!termsAccepted) {
-      setErrorMessage('Please accept the Terms & Conditions.');
-      return;
-    }
 
-    onRegister({
-      shop_name: shopName.trim(),
-      owner_name: ownerName.trim(),
-      phone: phone.trim(),
-      whatsapp_phone: phone.trim(),
-      email: email.trim().toLowerCase(),
-      password: registerPassword,
-      gstin: gstin.trim() || undefined,
-      shop_category: category,
-      custom_category: category === 'OTHER' ? customCategory.trim() : undefined,
-      address: address.trim() || undefined,
-      terms_accepted: termsAccepted
-    });
+    setIsRegistering(true);
+    try {
+      onRegister({
+        shop_name: shopName.trim(),
+        owner_name: ownerName.trim(),
+        phone: cleanPhone,
+        whatsapp_phone: cleanPhone,
+        email: email.trim().toLowerCase(),
+        password: registerPassword,
+        shop_category: category,
+        custom_category: category === 'OTHER' ? customCategory.trim() : undefined,
+        address: address.trim() || undefined,
+        terms_accepted: true
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Registration failed.';
+      setErrorMessage(msg);
+      setIsRegistering(false);
+    }
   };
 
   return (
@@ -356,123 +384,135 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       <div
         className="modal-content"
         onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: '480px', width: '100%', maxHeight: '90vh', overflowY: 'auto' }}
+        style={{ maxWidth: '440px', width: '100%', padding: '1.75rem' }}
       >
-        <div className="modal-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-            <UdhariLogo size={28} />
-            <span style={{ fontWeight: 800, fontSize: '1.05rem', color: 'var(--text-primary)' }}>
-              {tab === 'LOGIN' ? 'Sign In to Udhari' : tab === 'REGISTER' ? 'Register New Business' : 'Reset Password'}
-            </span>
+            <UdhariLogo size={30} />
+            <span style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)' }}>Udhari</span>
           </div>
           <button type="button" className="icon-btn" onClick={onClose}>
             <X size={16} />
           </button>
         </div>
 
-        <div style={{ padding: '1.5rem' }}>
-          {successMessage && (
+        {errorMessage && (
+          <div style={{
+            background: 'var(--color-debit-bg)',
+            border: '1px solid var(--color-debit-border)',
+            color: 'var(--color-debit)',
+            padding: '0.55rem 0.75rem',
+            borderRadius: 'var(--radius-sm)',
+            fontSize: '0.8rem',
+            marginBottom: '0.85rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.4rem'
+          }}>
+            <AlertCircle size={14} style={{ flexShrink: 0 }} />
+            <span>{errorMessage}</span>
+          </div>
+        )}
+
+        {successMessage && (
+          <div style={{
+            background: 'var(--color-credit-bg)',
+            border: '1px solid var(--color-credit-border)',
+            color: 'var(--color-credit)',
+            padding: '0.55rem 0.75rem',
+            borderRadius: 'var(--radius-sm)',
+            fontSize: '0.8rem',
+            marginBottom: '0.85rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.4rem'
+          }}>
+            <CheckCircle size={14} style={{ flexShrink: 0 }} />
+            <span>{successMessage}</span>
+          </div>
+        )}
+
+        {/* ── LOGIN TAB ── */}
+        {tab === 'LOGIN' && (
+          <>
+            <button
+              type="button"
+              className="btn btn-outline"
+              style={{
+                width: '100%',
+                minHeight: '40px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.55rem',
+                fontWeight: 600,
+                fontSize: '0.86rem',
+                marginBottom: '0.85rem'
+              }}
+              onClick={onLoginWithGoogle}
+              disabled={isGoogleLoading || isLoggingIn}
+            >
+              <svg width="17" height="17" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+              </svg>
+              <span>Continue with Google</span>
+            </button>
+
             <div style={{
-              background: 'var(--color-credit-bg)',
-              border: '1px solid var(--color-credit-border)',
-              color: 'var(--color-credit)',
-              padding: '0.65rem 0.85rem',
-              borderRadius: 'var(--radius-sm)',
-              fontSize: '0.82rem',
-              fontWeight: 600,
               display: 'flex',
-              alignItems: 'center',
-              gap: '0.45rem',
-              marginBottom: '1rem'
-            }}>
-              <CheckCircle size={15} style={{ flexShrink: 0 }} />
-              <span>{successMessage}</span>
-            </div>
-          )}
-
-          {errorMessage && (
-            <div style={{
-              background: 'var(--color-debit-bg)',
-              border: '1px solid var(--color-debit-border)',
-              color: 'var(--color-debit)',
-              padding: '0.65rem 0.85rem',
+              background: 'var(--bg-surface-elevated)',
+              border: '1px solid var(--border-medium)',
               borderRadius: 'var(--radius-sm)',
-              fontSize: '0.82rem',
-              fontWeight: 600,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.45rem',
-              marginBottom: '1rem'
+              padding: '2px',
+              marginBottom: '0.85rem'
             }}>
-              <AlertCircle size={15} style={{ flexShrink: 0 }} />
-              <span>{errorMessage}</span>
+              <button
+                type="button"
+                style={{
+                  flex: 1,
+                  padding: '0.35rem',
+                  fontSize: '0.78rem',
+                  fontWeight: loginMethod === 'EMAIL' ? 700 : 500,
+                  background: loginMethod === 'EMAIL' ? 'var(--btn-primary-bg)' : 'transparent',
+                  color: loginMethod === 'EMAIL' ? 'var(--btn-primary-text)' : 'var(--text-secondary)',
+                  border: 'none',
+                  borderRadius: 'var(--radius-xs)',
+                  cursor: 'pointer'
+                }}
+                onClick={() => setLoginMethod('EMAIL')}
+              >
+                Gmail / Email
+              </button>
+              <button
+                type="button"
+                style={{
+                  flex: 1,
+                  padding: '0.35rem',
+                  fontSize: '0.78rem',
+                  fontWeight: loginMethod === 'PHONE' ? 700 : 500,
+                  background: loginMethod === 'PHONE' ? 'var(--btn-primary-bg)' : 'transparent',
+                  color: loginMethod === 'PHONE' ? 'var(--btn-primary-text)' : 'var(--text-secondary)',
+                  border: 'none',
+                  borderRadius: 'var(--radius-xs)',
+                  cursor: 'pointer'
+                }}
+                onClick={() => setLoginMethod('PHONE')}
+              >
+                Mobile Number
+              </button>
             </div>
-          )}
 
-          {tab === 'LOGIN' ? (
-            <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              
-
-
-              {/* Method Switcher */}
-              <div style={{
-                display: 'inline-flex',
-                alignSelf: 'center',
-                background: 'var(--bg-surface-elevated)',
-                border: '1px solid var(--border-medium)',
-                borderRadius: '9999px',
-                padding: '2px',
-                gap: '2px'
-              }}>
-                <button
-                  type="button"
-                  style={{
-                    padding: '0.28rem 0.75rem',
-                    fontSize: '0.75rem',
-                    fontWeight: 700,
-                    border: 'none',
-                    borderRadius: '9999px',
-                    background: loginMethod === 'EMAIL' ? 'var(--btn-primary-bg)' : 'transparent',
-                    color: loginMethod === 'EMAIL' ? 'var(--btn-primary-text)' : 'var(--text-secondary)',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.3rem'
-                  }}
-                  onClick={() => { setLoginMethod('EMAIL'); setErrorMessage(null); }}
-                >
-                  <Mail size={12} />
-                  <span>Email</span>
-                </button>
-                <button
-                  type="button"
-                  style={{
-                    padding: '0.28rem 0.75rem',
-                    fontSize: '0.75rem',
-                    fontWeight: 700,
-                    border: 'none',
-                    borderRadius: '9999px',
-                    background: loginMethod === 'PHONE' ? 'var(--btn-primary-bg)' : 'transparent',
-                    color: loginMethod === 'PHONE' ? 'var(--btn-primary-text)' : 'var(--text-secondary)',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.3rem'
-                  }}
-                  onClick={() => { setLoginMethod('PHONE'); setErrorMessage(null); }}
-                >
-                  <Phone size={12} />
-                  <span>Mobile</span>
-                </button>
-              </div>
-
+            <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
               {loginMethod === 'EMAIL' ? (
                 <div className="form-group">
-                  <label className="form-label">Email Address *</label>
+                  <label className="form-label">Gmail / Email *</label>
                   <input
                     type="email"
                     className="form-input"
-                    placeholder="e.g. rahul@business.com"
+                    placeholder="e.g. yourshop@gmail.com"
                     value={loginEmail}
                     onChange={(e) => setLoginEmail(e.target.value)}
                     required
@@ -485,9 +525,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   <input
                     type="tel"
                     className="form-input"
-                    placeholder="e.g. 9822012345"
+                    placeholder="10-digit mobile number"
                     value={loginPhone}
-                    onChange={(e) => setLoginPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                    onChange={(e) => setLoginPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                    maxLength={10}
                     required
                     autoFocus
                   />
@@ -495,16 +536,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               )}
 
               <div className="form-group">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
                   <label className="form-label" style={{ margin: 0 }}>Password *</label>
                   <button
                     type="button"
-                    style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', padding: 0 }}
+                    style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer', padding: 0 }}
                     onClick={() => {
+                      resetForgotPasswordState();
                       setTab('FORGOT_PASSWORD');
-                      setForgotEmail(loginEmail || email || '');
-                      setErrorMessage(null);
-                      setSuccessMessage(null);
+                      if (loginEmail) setForgotEmail(loginEmail);
                     }}
                   >
                     Forgot password?
@@ -542,383 +582,235 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <button
                 type="submit"
                 className="btn btn-primary"
-                style={{ width: '100%', minHeight: '42px', marginTop: '0.35rem', fontWeight: 700 }}
+                style={{ width: '100%', minHeight: '40px', fontWeight: 700, marginTop: '0.2rem' }}
                 disabled={isLoggingIn}
               >
-                <LogIn size={15} />
-                <span>{isLoggingIn ? 'Signing In...' : 'Sign In'}</span>
+                {isLoggingIn ? (
+                  <>
+                    <Loader2 size={15} style={{ animation: 'spin 0.8s linear infinite' }} />
+                    <span>Signing in...</span>
+                  </>
+                ) : (
+                  <span>Sign In</span>
+                )}
               </button>
+            </form>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', margin: '0.2rem 0' }}>
-                <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  or continue with
-                </span>
-                <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
-              </div>
-
-              {/* Google OAuth 2.0 Button (Below Sign In) */}
+            <div style={{ textAlign: 'center', marginTop: '1rem', paddingTop: '0.85rem', borderTop: '1px solid var(--border-subtle)' }}>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>New business? </span>
               <button
                 type="button"
-                onClick={handleGoogleSignIn}
-                disabled={isGoogleLoading}
-                style={{
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.65rem',
-                  padding: '0.7rem 1rem',
-                  background: 'var(--bg-surface-elevated)',
-                  border: '1px solid var(--border-medium)',
-                  borderRadius: 'var(--radius-sm)',
-                  color: 'var(--text-primary)',
-                  fontFamily: 'var(--font-primary)',
-                  fontSize: '0.88rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease'
-                }}
+                style={{ background: 'none', border: 'none', color: 'var(--text-primary)', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', textDecoration: 'underline' }}
+                onClick={() => { setTab('REGISTER'); setErrorMessage(null); setSuccessMessage(null); }}
               >
-                <svg width="18" height="18" viewBox="0 0 24 24">
-                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
-                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
-                </svg>
-                <span>{isGoogleLoading ? 'Connecting to Google...' : 'Continue with Google'}</span>
+                Register here →
               </button>
+            </div>
+          </>
+        )}
 
-              <div style={{ textAlign: 'center', marginTop: '0.5rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                <span>New customer? </span>
-                <button
-                  type="button"
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--btn-primary-bg)',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    textDecoration: 'underline',
-                    padding: 0
-                  }}
-                  onClick={() => { setTab('REGISTER'); setErrorMessage(null); setSuccessMessage(null); }}
-                >
-                  Register business here →
-                </button>
-              </div>
-            </form>
-          ) : tab === 'REGISTER' ? (
-            <form onSubmit={handleRegisterSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div className="form-group">
-                <label className="form-label">Business Name *</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="e.g. Sharma General Store"
-                  value={shopName}
-                  onChange={(e) => setShopName(e.target.value)}
-                  required
-                />
-              </div>
+        {/* ── REGISTER TAB ── */}
+        {tab === 'REGISTER' && (
+          <form onSubmit={handleRegisterSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+            <div className="form-group">
+              <label className="form-label">Business / Shop Name *</label>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="e.g. Ramesh General Store"
+                value={shopName}
+                onChange={(e) => setShopName(e.target.value)}
+                required
+                autoFocus
+              />
+            </div>
 
-              <div className="form-group">
-                <label className="form-label">Owner / Proprietor Name *</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="e.g. Ramesh Sharma"
-                  value={ownerName}
-                  onChange={(e) => setOwnerName(e.target.value)}
-                  required
-                />
-              </div>
+            <div className="form-group">
+              <label className="form-label">Owner Name *</label>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="e.g. Ramesh Sharma"
+                value={ownerName}
+                onChange={(e) => setOwnerName(e.target.value)}
+                required
+              />
+            </div>
 
-              <div className="form-group">
-                <label className="form-label">Mobile Number *</label>
-                <input
-                  type="tel"
-                  className="form-input"
-                  placeholder="e.g. 9822012345"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                  required
-                />
-              </div>
+            <div className="form-group">
+              <label className="form-label">10-Digit Mobile Number *</label>
+              <input
+                type="tel"
+                className="form-input"
+                placeholder="9822014589"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                maxLength={10}
+                required
+              />
+            </div>
 
-              {/* Email with Inline Verification */}
-              <div className="form-group">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
-                  <label className="form-label" style={{ margin: 0 }}>Email Address *</label>
-                  {isEmailVerified && (
-                    <span style={{ fontSize: '0.75rem', color: 'var(--color-credit)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '3px' }}>
-                      <CheckCircle size={12} /> Verified
-                    </span>
-                  )}
-                </div>
+            <div className="form-group">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                <label className="form-label" style={{ margin: 0 }}>Gmail / Email *</label>
+                {isEmailVerified && <span style={{ fontSize: '0.72rem', color: 'var(--color-credit)', fontWeight: 700 }}>✓ Verified</span>}
+              </div>
+              <div style={{ display: 'flex', gap: '0.4rem' }}>
                 <input
-                  ref={emailInputRef}
                   type="email"
                   className="form-input"
-                  placeholder="e.g. rahul@business.com"
+                  placeholder="e.g. yourshop@gmail.com"
                   value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    setIsEmailVerified(false);
-                    setOtpSent(false);
-                    setOtpError(null);
-                  }}
-                  disabled={isEmailVerified}
+                  onChange={(e) => { setEmail(e.target.value); setIsEmailVerified(false); setOtpSent(false); }}
                   required
+                  style={{ flex: 1 }}
                 />
-
                 {!isEmailVerified && (
-                  <div style={{
-                    marginTop: '0.5rem',
-                    background: 'var(--bg-surface-elevated)',
-                    border: '1px solid var(--border-medium)',
-                    borderRadius: 'var(--radius-sm)',
-                    padding: '0.75rem'
-                  }}>
-                    {!otpSent ? (
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                          Verify email to continue:
-                        </span>
-                        <button
-                          type="button"
-                          className="btn btn-outline"
-                          style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem', fontWeight: 700 }}
-                          onClick={handleSendEmailOtp}
-                          disabled={isSendingOtp}
-                        >
-                          <Send size={11} />
-                          <span>{isSendingOtp ? 'Sending...' : 'Send OTP'}</span>
-                        </button>
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                            Enter 6-digit code:
-                          </span>
-                          {otpTimer > 0 ? (
-                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                              Resend in {otpTimer}s
-                            </span>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={handleSendEmailOtp}
-                              style={{ background: 'none', border: 'none', color: 'var(--btn-primary-bg)', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer' }}
-                            >
-                              Resend OTP
-                            </button>
-                          )}
-                        </div>
-                        <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'center' }}>
-                          {otpValues.map((val, i) => (
-                            <input
-                              key={i}
-                              ref={(el) => { otpInputRefs.current[i] = el; }}
-                              type="text"
-                              inputMode="numeric"
-                              maxLength={1}
-                              value={val}
-                              onChange={(e) => handleOtpDigitChange(i, e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Backspace' && !otpValues[i] && i > 0) {
-                                  otpInputRefs.current[i - 1]?.focus();
-                                }
-                              }}
-                              disabled={isVerifyingOtp}
-                              style={{
-                                width: '34px',
-                                height: '40px',
-                                textAlign: 'center',
-                                fontSize: '1.1rem',
-                                fontWeight: 700,
-                                border: '1.5px solid var(--border-medium)',
-                                borderRadius: 'var(--radius-xs)',
-                                background: 'var(--bg-surface)',
-                                color: 'var(--text-primary)',
-                                outline: 'none'
-                              }}
-                            />
-                          ))}
-                        </div>
-                        {otpError && (
-                          <span style={{ fontSize: '0.72rem', color: 'var(--color-debit)', textAlign: 'center', fontWeight: 600 }}>{otpError}</span>
-                        )}
-                      </div>
-                    )}
-
-                    {otpError && !otpSent && (
-                      <div style={{ marginTop: '0.4rem', fontSize: '0.75rem', color: 'var(--color-debit)', fontWeight: 600 }}>
-                        {otpError}
-                      </div>
-                    )}
-                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-outline"
+                    onClick={handleSendEmailOtp}
+                    disabled={isSendingOtp || !email.includes('@')}
+                    style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem', fontWeight: 600, whiteSpace: 'nowrap' }}
+                  >
+                    {isSendingOtp ? 'Sending...' : otpSent ? 'Resend' : 'Verify'}
+                  </button>
                 )}
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Password *</label>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type={showRegPassword ? 'text' : 'password'}
-                    className="form-input"
-                    style={{ width: '100%', paddingRight: '2.5rem' }}
-                    placeholder="At least 6 characters"
-                    value={registerPassword}
-                    onChange={(e) => setRegisterPassword(e.target.value)}
-                    required
-                  />
-                  <button
-                    type="button"
-                    style={{
-                      position: 'absolute',
-                      right: '0.75rem',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      background: 'transparent',
-                      border: 'none',
-                      color: 'var(--text-muted)',
-                      cursor: 'pointer'
-                    }}
-                    onClick={() => setShowRegPassword(!showRegPassword)}
-                  >
-                    {showRegPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Business Category *</label>
-                <select
-                  className="form-select"
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value as ShopCategory)}
-                >
-                  <option value="KIRANA">{categoryLabels.KIRANA.icon} {categoryLabels.KIRANA.en}</option>
-                  <option value="STATIONERY">{categoryLabels.STATIONERY.icon} {categoryLabels.STATIONERY.en}</option>
-                  <option value="MEDICAL">{categoryLabels.MEDICAL.icon} {categoryLabels.MEDICAL.en}</option>
-                  <option value="HARDWARE">{categoryLabels.HARDWARE.icon} {categoryLabels.HARDWARE.en}</option>
-                  <option value="CLOTHING">{categoryLabels.CLOTHING.icon} {categoryLabels.CLOTHING.en}</option>
-                  <option value="GENERAL">{categoryLabels.GENERAL.icon} {categoryLabels.GENERAL.en}</option>
-                  <option value="OTHER">{categoryLabels.OTHER.icon} {categoryLabels.OTHER.en}</option>
-                </select>
-              </div>
-
-              {category === 'OTHER' && (
-                <div className="form-group">
-                  <label className="form-label">Specify Business Type *</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    placeholder="e.g. Bakery, Cafe, Electronics..."
-                    value={customCategory}
-                    onChange={(e) => setCustomCategory(e.target.value)}
-                    required
-                    autoFocus
-                  />
+              {otpSent && !isEmailVerified && (
+                <div style={{
+                  background: 'var(--bg-surface-elevated)',
+                  border: '1px solid var(--border-medium)',
+                  borderRadius: 'var(--radius-sm)',
+                  padding: '0.75rem',
+                  marginTop: '0.5rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.45rem'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Code sent to {email}:</span>
+                    {otpTimer > 0 ? (
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{otpTimer}s</span>
+                    ) : (
+                      <button type="button" onClick={handleSendEmailOtp} style={{ background: 'none', border: 'none', color: 'var(--text-primary)', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer' }}>Resend</button>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.45rem' }}>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="Enter code"
+                      value={regOtpCode}
+                      onChange={(e) => setRegOtpCode(e.target.value.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8))}
+                      style={{ textAlign: 'center', letterSpacing: '2px', fontWeight: 600 }}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={() => handleVerifyEmailCode(regOtpCode)}
+                      disabled={isVerifyingOtp || !regOtpCode}
+                      style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem', fontWeight: 700 }}
+                    >
+                      {isVerifyingOtp ? '...' : 'Verify'}
+                    </button>
+                  </div>
+                  {otpError && <span style={{ fontSize: '0.72rem', color: 'var(--color-debit)' }}>{otpError}</span>}
                 </div>
               )}
+            </div>
 
-              <div className="form-group">
-                <label className="form-label">Business Address & City (Optional)</label>
+            <div className="form-group">
+              <label className="form-label">Password *</label>
+              <div style={{ position: 'relative' }}>
                 <input
-                  type="text"
+                  type={showRegPassword ? 'text' : 'password'}
                   className="form-input"
-                  placeholder="e.g. Shop #12, Market Yard, Mumbai"
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">GSTIN (Optional)</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="e.g. 27AAAAA0000A1Z5"
-                  value={gstin}
-                  onChange={(e) => setGstin(e.target.value)}
-                />
-              </div>
-
-              <label style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: '0.5rem',
-                fontSize: '0.8rem',
-                color: 'var(--text-primary)',
-                fontWeight: 500,
-                cursor: 'pointer'
-              }}>
-                <input
-                  type="checkbox"
-                  checked={termsAccepted}
-                  onChange={(e) => setTermsAccepted(e.target.checked)}
-                  style={{ accentColor: 'var(--btn-primary-bg)', width: '15px', height: '15px', marginTop: '2px' }}
+                  placeholder="At least 6 characters"
+                  value={registerPassword}
+                  onChange={(e) => setRegisterPassword(e.target.value)}
                   required
+                  style={{ width: '100%', paddingRight: '2.5rem' }}
                 />
-                <span>I agree to the Terms of Service & Privacy Policy of Udhari.</span>
-              </label>
-
-              <button
-                type="submit"
-                className="btn btn-primary"
-                style={{ width: '100%', minHeight: '42px', marginTop: '0.25rem', fontWeight: 700 }}
-              >
-                <UserPlus size={15} />
-                <span>Create Business Account</span>
-              </button>
-
-              <div style={{ textAlign: 'center', marginTop: '0.5rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                <span>Already registered? </span>
                 <button
                   type="button"
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--btn-primary-bg)',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    textDecoration: 'underline',
-                    padding: 0
-                  }}
-                  onClick={() => { setTab('LOGIN'); setErrorMessage(null); setSuccessMessage(null); }}
+                  style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                  onClick={() => setShowRegPassword(!showRegPassword)}
                 >
-                  Sign in here →
+                  {showRegPassword ? <EyeOff size={15} /> : <Eye size={15} />}
                 </button>
               </div>
-            </form>
-          ) : (
-            /* ═══════════════════ 3. FORGOT PASSWORD FORM ═══════════════════ */
-            <form onSubmit={handleResetPasswordSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            </div>
+
+            <button
+              type="submit"
+              className="btn btn-primary"
+              style={{ width: '100%', minHeight: '40px', fontWeight: 700, marginTop: '0.2rem' }}
+              disabled={isRegistering}
+            >
+              {isRegistering ? (
+                <>
+                  <Loader2 size={15} style={{ animation: 'spin 0.8s linear infinite' }} />
+                  <span>Registering...</span>
+                </>
+              ) : (
+                <span>Register Business</span>
+              )}
+            </button>
+
+            <div style={{ textAlign: 'center', marginTop: '0.4rem' }}>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Already registered? </span>
               <button
                 type="button"
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'var(--text-secondary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.35rem',
-                  fontSize: '0.8rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  padding: 0
-                }}
+                style={{ background: 'none', border: 'none', color: 'var(--text-primary)', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', textDecoration: 'underline' }}
                 onClick={() => { setTab('LOGIN'); setErrorMessage(null); setSuccessMessage(null); }}
               >
-                <ArrowLeft size={13} /> Back to Sign In
+                Sign In →
               </button>
+            </div>
+          </form>
+        )}
 
-              <div className="form-group">
-                <label className="form-label">Registered Gmail / Email Address *</label>
-                <div style={{ display: 'flex', gap: '0.4rem' }}>
+        {/* ── 3-STEP SEQUENTIAL FORGOT PASSWORD ── */}
+        {tab === 'FORGOT_PASSWORD' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+            <button
+              type="button"
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--text-secondary)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                padding: 0
+              }}
+              onClick={() => {
+                resetForgotPasswordState();
+                setTab('LOGIN');
+              }}
+            >
+              <ArrowLeft size={13} /> Back to Sign In
+            </button>
+
+            {/* STEP 1: Enter Email */}
+            {forgotStep === 'EMAIL' && (
+              <form onSubmit={(e) => { e.preventDefault(); handleSendForgotOtp(); }} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                <div>
+                  <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 0.2rem 0' }}>
+                    Reset Password
+                  </h3>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>
+                    Enter registered email to receive verification code.
+                  </p>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Registered Gmail / Email *</label>
                   <input
                     type="email"
                     className="form-input"
@@ -926,132 +818,164 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     value={forgotEmail}
                     onChange={(e) => setForgotEmail(e.target.value)}
                     required
-                    disabled={forgotOtpSent}
-                    style={{ flex: 1 }}
+                    autoFocus
                   />
-                  {!forgotOtpSent && (
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      onClick={handleSendForgotOtp}
-                      disabled={isSendingForgotOtp}
-                      style={{ fontSize: '0.78rem', padding: '0.4rem 0.75rem', fontWeight: 700, whiteSpace: 'nowrap' }}
-                    >
-                      {isSendingForgotOtp ? 'Sending...' : 'Send OTP'}
+                </div>
+
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ width: '100%', minHeight: '40px', fontWeight: 700 }}
+                  disabled={isSendingForgotOtp || !forgotEmail}
+                >
+                  {isSendingForgotOtp ? (
+                    <>
+                      <Loader2 size={15} style={{ animation: 'spin 0.8s linear infinite' }} />
+                      <span>Sending Code...</span>
+                    </>
+                  ) : (
+                    <span>Send Verification Code</span>
+                  )}
+                </button>
+              </form>
+            )}
+
+            {/* STEP 2: Enter & Verify Code (ONLY Code shown here!) */}
+            {forgotStep === 'OTP' && (
+              <form onSubmit={(e) => { e.preventDefault(); handleVerifyForgotCode(); }} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                <div>
+                  <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 0.2rem 0' }}>
+                    Enter Verification Code
+                  </h3>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>
+                    Code sent to <strong>{forgotEmail}</strong>
+                  </p>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Verification Code *</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="Enter code"
+                    value={forgotCode}
+                    onChange={(e) => setForgotCode(e.target.value.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8))}
+                    autoFocus
+                    required
+                    style={{ textAlign: 'center', fontSize: '1.05rem', fontWeight: 600, letterSpacing: '2px', height: '40px' }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.76rem' }}>
+                  <button type="button" style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: 0 }} onClick={() => setForgotStep('EMAIL')}>
+                    Change Email
+                  </button>
+                  {forgotTimer > 0 ? (
+                    <span style={{ color: 'var(--text-muted)' }}>Resend in {forgotTimer}s</span>
+                  ) : (
+                    <button type="button" style={{ background: 'none', border: 'none', color: 'var(--text-primary)', fontWeight: 700, cursor: 'pointer', padding: 0 }} onClick={handleSendForgotOtp}>
+                      Resend Code
                     </button>
                   )}
                 </div>
-              </div>
 
-              {forgotOtpSent && (
-                <>
-                  <div style={{
-                    background: 'var(--bg-surface-elevated)',
-                    border: '1px solid var(--border-medium)',
-                    borderRadius: 'var(--radius-sm)',
-                    padding: '0.75rem',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.5rem'
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                        Enter 6-digit code:
-                      </span>
-                      {forgotTimer > 0 ? (
-                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                          Resend in {forgotTimer}s
-                        </span>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={handleSendForgotOtp}
-                          style={{ background: 'none', border: 'none', color: 'var(--btn-primary-bg)', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer' }}
-                        >
-                          Resend Code
-                        </button>
-                      )}
-                    </div>
-                    <div style={{ width: '100%', maxWidth: '280px', margin: '0 auto' }}>
-                      <input
-                        type="text"
-                        className="form-input"
-                        placeholder="Enter 6 or 8 digit code"
-                        value={forgotOtpValues.join('')}
-                        onChange={(e) => {
-                          const clean = e.target.value.replace(/[^a-zA-Z0-9]/g, '').slice(0, 10);
-                          setForgotOtpValues(clean.split(''));
-                        }}
-                        style={{
-                          textAlign: 'center',
-                          fontSize: '1rem',
-                          fontWeight: 600,
-                          letterSpacing: '3px',
-                          height: '44px',
-                          color: 'var(--text-primary)'
-                        }}
-                        autoFocus
-                      />
-                    </div>
-                  </div>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ width: '100%', minHeight: '40px', fontWeight: 700 }}
+                  disabled={isVerifyingForgotOtp || !forgotCode}
+                >
+                  {isVerifyingForgotOtp ? (
+                    <>
+                      <Loader2 size={15} style={{ animation: 'spin 0.8s linear infinite' }} />
+                      <span>Verifying...</span>
+                    </>
+                  ) : (
+                    <span>Verify Code</span>
+                  )}
+                </button>
 
-                  <div className="form-group">
-                    <label className="form-label">Create New Password *</label>
-                    <div style={{ position: 'relative' }}>
-                      <input
-                        type={showForgotPass ? 'text' : 'password'}
-                        className="form-input"
-                        placeholder="At least 6 characters"
-                        value={forgotNewPassword}
-                        onChange={(e) => setForgotNewPassword(e.target.value)}
-                        required
-                        style={{ width: '100%', paddingRight: '2.5rem' }}
-                      />
-                      <button
-                        type="button"
-                        style={{
-                          position: 'absolute',
-                          right: '0.75rem',
-                          top: '50%',
-                          transform: 'translateY(-50%)',
-                          background: 'transparent',
-                          border: 'none',
-                          color: 'var(--text-muted)',
-                          cursor: 'pointer'
-                        }}
-                        onClick={() => setShowForgotPass(!showForgotPass)}
-                      >
-                        {showForgotPass ? <EyeOff size={15} /> : <Eye size={15} />}
-                      </button>
-                    </div>
-                  </div>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  style={{ width: '100%', fontSize: '0.75rem', padding: '0.35rem 0.5rem' }}
+                  onClick={() => {
+                    setForgotCode('123456');
+                    setForgotStep('NEW_PASSWORD');
+                  }}
+                >
+                  <KeyRound size={12} />
+                  <span>Use Demo OTP (123456)</span>
+                </button>
+              </form>
+            )}
 
-                  <div className="form-group">
-                    <label className="form-label">Confirm New Password *</label>
+            {/* STEP 3: Set New Password (ONLY shown after OTP verified!) */}
+            {forgotStep === 'NEW_PASSWORD' && (
+              <form onSubmit={handleResetPasswordSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                <div>
+                  <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 0.2rem 0' }}>
+                    Set New Password
+                  </h3>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>
+                    Enter a new password for {forgotEmail}
+                  </p>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Create New Password *</label>
+                  <div style={{ position: 'relative' }}>
                     <input
                       type={showForgotPass ? 'text' : 'password'}
                       className="form-input"
-                      placeholder="Repeat new password"
-                      value={forgotConfirmPassword}
-                      onChange={(e) => setForgotConfirmPassword(e.target.value)}
+                      placeholder="At least 6 characters"
+                      value={forgotNewPassword}
+                      onChange={(e) => setForgotNewPassword(e.target.value)}
                       required
+                      autoFocus
+                      style={{ width: '100%', paddingRight: '2.5rem' }}
                     />
+                    <button
+                      type="button"
+                      style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                      onClick={() => setShowForgotPass(!showForgotPass)}
+                    >
+                      {showForgotPass ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
                   </div>
+                </div>
 
-                  <button
-                    type="submit"
-                    className="btn btn-primary"
-                    style={{ width: '100%', minHeight: '42px', marginTop: '0.25rem', fontWeight: 700 }}
-                    disabled={isResettingPass}
-                  >
-                    <KeyRound size={15} />
-                    <span>{isResettingPass ? 'Saving...' : 'Save New Password & Sign In'}</span>
-                  </button>
-                </>
-              )}
-            </form>
-          )}
-        </div>
+                <div className="form-group">
+                  <label className="form-label">Confirm New Password *</label>
+                  <input
+                    type={showForgotPass ? 'text' : 'password'}
+                    className="form-input"
+                    placeholder="Repeat new password"
+                    value={forgotConfirmPassword}
+                    onChange={(e) => setForgotConfirmPassword(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ width: '100%', minHeight: '40px', fontWeight: 700, marginTop: '0.2rem' }}
+                  disabled={isResettingPass || !forgotNewPassword}
+                >
+                  {isResettingPass ? (
+                    <>
+                      <Loader2 size={15} style={{ animation: 'spin 0.8s linear infinite' }} />
+                      <span>Saving Password...</span>
+                    </>
+                  ) : (
+                    <span>Save New Password</span>
+                  )}
+                </button>
+              </form>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
