@@ -317,12 +317,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         throw new Error(res.error || 'Failed to update password.');
       }
 
-      // Success! Clear state and route to login
-      const savedEmail = forgotEmail.trim();
+      // Success! Clear all states and route to clean login
       resetForgotPasswordState();
-      setSuccessMessage('Password reset successfully! Please sign in with your new password.');
-      setLoginEmail(savedEmail);
+      setLoginEmail('');
       setLoginPassword('');
+      setForgotEmail('');
+      setSuccessMessage('Password reset successfully! Please sign in with your new credentials.');
       setTab('LOGIN');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Password reset failed.';
@@ -658,8 +658,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                     }}
                     onClick={() => {
                       resetForgotPasswordState();
+                      setForgotEmail('');
                       setTab('FORGOT_PASSWORD');
-                      if (loginEmail) setForgotEmail(loginEmail);
                     }}
                   >
                     Forgot password?

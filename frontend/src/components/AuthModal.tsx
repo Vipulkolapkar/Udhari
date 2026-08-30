@@ -292,11 +292,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         throw new Error(res.error || 'Failed to update password.');
       }
 
-      const savedEmail = forgotEmail.trim();
       resetForgotPasswordState();
-      setSuccessMessage('Password reset successfully! Please sign in with your new password.');
-      setLoginEmail(savedEmail);
+      setLoginEmail('');
       setLoginPassword('');
+      setForgotEmail('');
+      setSuccessMessage('Password reset successfully! Please sign in with your new credentials.');
       setTab('LOGIN');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Password reset failed.';
@@ -552,8 +552,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer', padding: 0 }}
                     onClick={() => {
                       resetForgotPasswordState();
+                      setForgotEmail('');
                       setTab('FORGOT_PASSWORD');
-                      if (loginEmail) setForgotEmail(loginEmail);
                     }}
                   >
                     Forgot password?
