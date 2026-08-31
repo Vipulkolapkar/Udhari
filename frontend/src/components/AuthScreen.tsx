@@ -156,6 +156,18 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
     setOtpError(null);
 
     try {
+      // Check if email is already registered
+      const { data: existingShop } = await supabase
+        .from('shops')
+        .select('id, shop_name, email')
+        .ilike('email', cleanEmail)
+        .limit(1);
+
+      if (existingShop && existingShop.length > 0) {
+        setOtpError(`The email "${cleanEmail}" is already registered. Please sign in instead.`);
+        setIsSendingOtp(false);
+        return;
+      }
       const { error } = await supabase.auth.signInWithOtp({
         email: cleanEmail,
         options: {
@@ -431,6 +443,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
       setErrorMessage('Please verify your email address to continue.');
       return;
     }
+
+    const cleanEmail = email.trim().toLowerCase();
     const passValidation = validatePasswordStrength(registerPassword);
     if (!passValidation.isValid) {
       setErrorMessage(passValidation.error || 'Password does not meet security requirements.');

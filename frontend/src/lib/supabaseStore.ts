@@ -54,6 +54,19 @@ export async function sbRegisterShop(shopData: {
   address?: string;
   terms_accepted?: boolean;
 }): Promise<ShopUser> {
+  if (shopData.email) {
+    const cleanEmail = shopData.email.trim().toLowerCase();
+    const { data: existingEmail } = await supabase
+      .from('shops')
+      .select('id, shop_name, email')
+      .ilike('email', cleanEmail)
+      .limit(1);
+
+    if (existingEmail && existingEmail.length > 0) {
+      throw new Error(`The email "${cleanEmail}" is already registered. Please sign in instead.`);
+    }
+  }
+
   const categoryToSave = (shopData.shop_category === 'OTHER' && shopData.custom_category)
     ? shopData.custom_category
     : shopData.shop_category;
