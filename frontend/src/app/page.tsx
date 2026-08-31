@@ -1,5 +1,5 @@
 'use client';
-import { LogOut, Trash2, Loader2, Check } from 'lucide-react';
+import { LogOut, Trash2, Loader2, Check, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -61,7 +61,7 @@ export default function Home() {
   });
   const [searchQuery, setSearchQuery] = useState('');
   const [searchMode, setSearchMode] = useState<'NAME' | 'PHONE'>('NAME');
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isSignOutConfirmOpen, setIsSignOutConfirmOpen] = useState(false);
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
@@ -85,9 +85,9 @@ export default function Home() {
   const [whatsappModalCustomer, setWhatsappModalCustomer] = useState<Customer | null>(null);
   const [isAddCustomerOpen, setIsAddCustomerOpen] = useState(false);
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
+  const showToast = (msg: string, type: 'success' | 'error' | 'info' = 'success') => {
+    setToast({ text: msg, type });
+    setTimeout(() => setToast(null), 3500);
   };
 
   // ─── Load all data from Supabase ─────────────────────────────────
@@ -122,7 +122,7 @@ export default function Home() {
       }
     } catch (err) {
       console.error('refreshData error:', err);
-      showToast('Connection issue. Check your internet and try again.');
+      showToast('Connection issue. Check your internet and try again.', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -172,7 +172,7 @@ export default function Home() {
             isEmailVerified: true,
             message: `No registered business found for "${userEmail}". Please complete registration below to create your account.`
           });
-          showToast(`No registered account found for ${userEmail}. Please register.`);
+          showToast(`No registered business account found for ${userEmail}. Please register below.`, 'error');
         }
       } catch (e) {
         console.error('Google Auth event error:', e);
@@ -263,7 +263,7 @@ export default function Home() {
       return { success: true };
     } else {
       const errMsg = res.error || 'Account not found or incorrect credentials.';
-      showToast(errMsg);
+      showToast(errMsg, 'error');
       return { success: false, error: errMsg };
     }
   };
@@ -279,7 +279,7 @@ export default function Home() {
       if (error) throw error;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Google authentication failed.';
-      showToast(msg);
+      showToast(msg, 'error');
     }
   };
 
@@ -300,7 +300,7 @@ export default function Home() {
       await refreshData(newShop.id);
         showToast(`Welcome! Business "${newShop.shop_name}" registered successfully!`);
     } catch (err) {
-      showToast('Registration failed. Please try again.');
+      showToast('Registration failed. Please try again.', 'error');
       console.error(err);
     }
   };
@@ -364,7 +364,7 @@ export default function Home() {
         showToast(t.billCreatedSuccess);
       }
     } catch (err) {
-      showToast('Failed to create bill. Try again.');
+      showToast('Failed to create bill. Try again.', 'error');
       console.error(err);
     }
   };
@@ -385,7 +385,7 @@ export default function Home() {
       setPaymentModalCustomer(null);
       showToast(t.recordPaymentSuccess);
     } catch (err) {
-      showToast('Failed to record payment. Try again.');
+      showToast('Failed to record payment. Try again.', 'error');
       console.error(err);
     }
   };
@@ -399,11 +399,11 @@ export default function Home() {
         await refreshData(currentShop.id);
         showToast('Payment record deleted and balance restored.');
       } else {
-        showToast('Failed to delete payment.');
+        showToast('Failed to delete payment.', 'error');
       }
     } catch (err) {
       console.error('Delete payment error:', err);
-      showToast('Error deleting payment.');
+      showToast('Error deleting payment.', 'error');
     }
   };
 
@@ -419,11 +419,11 @@ export default function Home() {
         await refreshData(currentShop.id);
         showToast(`Deleted "${customer.name}" and all history.`);
       } else {
-        showToast('Failed to delete customer. Try again.');
+        showToast('Failed to delete customer. Try again.', 'error');
       }
     } catch (err) {
       console.error('Delete customer error:', err);
-      showToast('Error deleting customer.');
+      showToast('Error deleting customer.', 'error');
     } finally {
       setIsDeletingCustomer(false);
     }
@@ -448,7 +448,7 @@ export default function Home() {
       setIsAddCustomerOpen(false);
       showToast(`Added customer ${newCust.name}`);
     } catch (err) {
-      showToast('Failed to add customer. Try again.');
+      showToast('Failed to add customer. Try again.', 'error');
       console.error(err);
     }
   };
@@ -535,11 +535,22 @@ export default function Home() {
           onRegister={handleRegisterShop}
         />
         {/* Global Toast on Auth Screen */}
-        {toastMessage && (
+        {toast && (
           <div className="toast-container" style={{ zIndex: 999999 }}>
-            <div className="toast">
-              <span style={{ color: 'var(--color-credit)', fontWeight: 700 }}>✓</span>
-              <span>{toastMessage}</span>
+            <div
+              className={`toast ${toast.type}`}
+              style={{
+                borderColor: toast.type === 'error' ? 'var(--color-debit-border, #ef4444)' : 'var(--border-medium)',
+                background: toast.type === 'error' ? 'var(--color-debit-bg, rgba(239, 68, 68, 0.15))' : 'var(--bg-surface-elevated, #161c28)',
+                color: toast.type === 'error' ? 'var(--color-debit, #ef4444)' : 'var(--text-primary)'
+              }}
+            >
+              {toast.type === 'error' ? (
+                <AlertCircle size={16} color="var(--color-debit, #ef4444)" style={{ flexShrink: 0 }} />
+              ) : (
+                <Check size={16} color="var(--color-credit, #22c55e)" strokeWidth={2.5} style={{ flexShrink: 0 }} />
+              )}
+              <span>{toast.text}</span>
             </div>
           </div>
         )}
@@ -555,7 +566,7 @@ export default function Home() {
         currentView={currentView}
         currentShop={currentShop}
         onToggle={handleToggleSidebar}
-        onSelectView={(view) => { setToastMessage(null); setCurrentView(view); }}
+        onSelectView={(view) => { setToast(null); setCurrentView(view); }}
         onLogout={() => setIsSignOutConfirmOpen(true)}
       />
 
@@ -637,7 +648,7 @@ export default function Home() {
             customers={customers}
             invoices={invoices}
             payments={payments}
-            onBackToDashboard={() => { setToastMessage(null); setCurrentView('DASHBOARD'); }}
+            onBackToDashboard={() => { setToast(null); setCurrentView('DASHBOARD'); }}
             onSaveShopSettings={handleSaveShopSettings}
           />
         ) : (
@@ -648,7 +659,7 @@ export default function Home() {
             customers={customers}
             invoices={invoices}
             payments={payments}
-            onBackToDashboard={() => { setToastMessage(null); setCurrentView('DASHBOARD'); }}
+            onBackToDashboard={() => { setToast(null); setCurrentView('DASHBOARD'); }}
             onLanguageChange={handleLanguageChange}
             onThemeChange={handleThemeChange}
             onSaveShopSettings={handleSaveShopSettings}
@@ -889,11 +900,22 @@ export default function Home() {
       )}
 
       {/* Toast */}
-      {toastMessage && (
+      {toast && (
         <div className="toast-container">
-          <div className="toast">
-            <span style={{ color: 'var(--color-credit)', fontWeight: 700 }}>✓</span>
-            <span>{toastMessage}</span>
+          <div
+            className={`toast ${toast.type}`}
+            style={{
+              borderColor: toast.type === 'error' ? 'var(--color-debit-border, #ef4444)' : 'var(--border-medium)',
+              background: toast.type === 'error' ? 'var(--color-debit-bg, rgba(239, 68, 68, 0.15))' : 'var(--bg-surface-elevated, #161c28)',
+              color: toast.type === 'error' ? 'var(--color-debit, #ef4444)' : 'var(--text-primary)'
+            }}
+          >
+            {toast.type === 'error' ? (
+              <AlertCircle size={16} color="var(--color-debit, #ef4444)" style={{ flexShrink: 0 }} />
+            ) : (
+              <Check size={16} color="var(--color-credit, #22c55e)" strokeWidth={2.5} style={{ flexShrink: 0 }} />
+            )}
+            <span>{toast.text}</span>
           </div>
         </div>
       )}
