@@ -507,11 +507,7 @@ export async function sbRecordPayment(
       allocated_amount: alloc.allocated_amount,
       created_at: new Date().toISOString()
     });
-    await supabase.from('invoices').update({
-      paid_amount: supabase.rpc as unknown as number, // will use select+update below
-      status: alloc.resulting_status
-    });
-    // Proper update
+    // Update invoice paid amount and status
     const { data: inv } = await supabase.from('invoices').select('paid_amount').eq('id', alloc.invoice_id).single();
     if (inv) {
       await supabase.from('invoices').update({
@@ -685,59 +681,3 @@ export async function sbSaveCustomerMessage(
 }
 
 // ─────────────────────────────────────────────────
-// SEED DEMO DATA (run once for a new shop)
-// ─────────────────────────────────────────────────
-export async function sbSeedDemoData(shopId: string) {
-  const { INITIAL_CUSTOMERS, INITIAL_INVOICES, INITIAL_PAYMENTS } = await import('./mockData');
-
-  const shopCustomers = INITIAL_CUSTOMERS
-    .filter((c) => c.shop_id === 'shop_stationery')
-    .map((c) => ({ ...c, id: c.id.replace('cust_', `cust_${shopId}_`), shop_id: shopId }));
-
-  await supabase.from('customers').insert(shopCustomers).then(({ error }) => {
-    if (error) console.error('Seed customers:', error);
-  });
-
-  const customerIdMap = new Map(
-    INITIAL_CUSTOMERS.filter((c) => c.shop_id === 'shop_stationery').map((c) => [c.id, c.id.replace('cust_', `cust_${shopId}_`)])
-  );
-
-  for (const inv of INITIAL_INVOICES.filter((i) => i.shop_id === 'shop_stationery')) {
-    const newCustomerId = customerIdMap.get(inv.customer_id) || inv.customer_id;
-    const newInvId = inv.id + `_${shopId}`;
-    await supabase.from('invoices').insert([{
-      id: newInvId,
-      shop_id: shopId,
-      customer_id: newCustomerId,
-      invoice_number: inv.invoice_number,
-      total_amount: inv.total_amount,
-      paid_amount: inv.paid_amount,
-      discount_amount: inv.discount_amount,
-      status: inv.status,
-      taken_by_name: inv.taken_by_name,
-      notes: inv.notes,
-      due_date: inv.due_date,
-      created_at: inv.created_at
-    }]);
-    if (inv.items?.length) {
-      await supabase.from('invoice_items').insert(
-        inv.items.map((item) => ({ ...item, invoice_id: newInvId }))
-      );
-    }
-  }
-
-  for (const pay of INITIAL_PAYMENTS.filter((p) => p.shop_id === 'shop_stationery')) {
-    const newCustomerId = customerIdMap.get(pay.customer_id) || pay.customer_id;
-    await supabase.from('payments').insert([{
-      id: pay.id + `_${shopId}`,
-      shop_id: shopId,
-      customer_id: newCustomerId,
-      receipt_number: pay.receipt_number,
-      amount: pay.amount,
-      payment_mode: pay.payment_mode,
-      discount_waived: pay.discount_waived || 0,
-      reference_note: pay.reference_note,
-      created_at: pay.created_at
-    }]);
-  }
-}

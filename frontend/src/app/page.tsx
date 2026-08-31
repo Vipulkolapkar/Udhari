@@ -27,9 +27,6 @@ import {
   sbSaveCustomerMessage,
 } from '../lib/supabaseStore';
 
-// LocalStorage fallback for offline metrics
-import { KhataStore } from '../lib/storage';
-
 // Components
 import { Header } from '../components/Header';
 import { Sidebar } from '../components/Sidebar';
@@ -43,7 +40,6 @@ import { RecordPaymentModal } from '../components/RecordPaymentModal';
 import { LedgerModal } from '../components/LedgerModal';
 import { WhatsAppModal } from '../components/WhatsAppModal';
 import { AddCustomerModal } from '../components/AddCustomerModal';
-import { AuthModal } from '../components/AuthModal';
 import { ProfileView } from '../components/ProfileView';
 
 export default function Home() {
@@ -83,7 +79,6 @@ export default function Home() {
   } | null>(null);
 
   // Active Modals State
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [billModalCustomer, setBillModalCustomer] = useState<Customer | null>(null);
   const [paymentModalCustomer, setPaymentModalCustomer] = useState<Customer | null>(null);
   const [ledgerModalCustomer, setLedgerModalCustomer] = useState<Customer | null>(null);
@@ -252,7 +247,6 @@ export default function Home() {
   const handleLoginShop = async (shop: ShopUser) => {
     sbSetCurrentUser(shop);
     await refreshData(shop.id);
-    setIsAuthModalOpen(false);
     showToast(`Signed in to ${shop.shop_name}`);
   };
 
@@ -265,8 +259,7 @@ export default function Home() {
     if (res.user) {
       sbSetCurrentUser(res.user);
       await refreshData(res.user.id);
-      setIsAuthModalOpen(false);
-      showToast(`Welcome back, ${res.user.owner_name || res.user.shop_name}!`);
+        showToast(`Welcome back, ${res.user.owner_name || res.user.shop_name}!`);
       return { success: true };
     } else {
       const errMsg = res.error || 'Account not found or incorrect credentials.';
@@ -305,8 +298,7 @@ export default function Home() {
     try {
       const newShop = await sbRegisterShop(shopData);
       await refreshData(newShop.id);
-      setIsAuthModalOpen(false);
-      showToast(`Welcome! Business "${newShop.shop_name}" registered successfully!`);
+        showToast(`Welcome! Business "${newShop.shop_name}" registered successfully!`);
     } catch (err) {
       showToast('Registration failed. Please try again.');
       console.error(err);
@@ -666,17 +658,6 @@ export default function Home() {
       </main>
 
       {/* Modals */}
-      {isAuthModalOpen && (
-        <AuthModal
-          language={language}
-          existingShops={existingShops}
-          onClose={() => setIsAuthModalOpen(false)}
-          onLogin={handleLoginShop}
-          onLoginWithEmail={handleLoginWithEmail}
-          onLoginWithGoogle={handleLoginWithGoogle}
-          onRegister={handleRegisterShop}
-        />
-      )}
 
       {billModalCustomer && (
         <CreateBillModal
