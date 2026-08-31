@@ -164,7 +164,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         .limit(1);
 
       if (existingShop && existingShop.length > 0) {
-        setOtpError(`The email "${cleanEmail}" is already registered. Please sign in instead.`);
+        const msg = `The email "${cleanEmail}" is already registered. Please sign in instead.`;
+        setErrorMessage(msg);
+        setOtpError(msg);
         setIsSendingOtp(false);
         return;
       }
