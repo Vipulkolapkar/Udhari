@@ -1,5 +1,5 @@
 'use client';
-import { LogOut, Trash2, Loader2 } from 'lucide-react';
+import { LogOut, Trash2, Loader2, Check } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -72,6 +72,7 @@ export default function Home() {
   const [isDeletingCustomer, setIsDeletingCustomer] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isOAuthRedirecting, setIsOAuthRedirecting] = useState(false);
 
   const [prefilledAuth, setPrefilledAuth] = useState<{
     tab?: 'LOGIN' | 'REGISTER';
@@ -142,6 +143,13 @@ export default function Home() {
 
       const savedSidebar = localStorage.getItem('khata_sidebar_collapsed');
       setIsSidebarCollapsed(savedSidebar === 'true' ? true : false);
+
+      const isOAuthLanding = window.location.hash.includes('access_token') ||
+        window.location.hash.includes('type=signup') ||
+        window.location.search.includes('code=');
+      if (isOAuthLanding) {
+        setIsOAuthRedirecting(true);
+      }
     }
     refreshData().finally(() => setIsInitialized(true));
 
@@ -174,6 +182,8 @@ export default function Home() {
       } catch (e) {
         console.error('Google Auth event error:', e);
         await refreshData();
+      } finally {
+        setIsOAuthRedirecting(false);
       }
     };
 
@@ -316,6 +326,7 @@ export default function Home() {
     }
     sbSetCurrentUser(null);
     setCurrentShop(null);
+    setPrefilledAuth(null);
     setCurrentView('DASHBOARD');
     setCustomers([]);
     setInvoices([]);
@@ -486,6 +497,34 @@ export default function Home() {
   }
 
   // ─── Gamified OAuth / Verification Success Overlay ─────────────────
+  if (isOAuthRedirecting) {
+    return (
+      <div style={{
+        position: 'fixed', inset: 0,
+        background: 'var(--bg-app, #0f141f)',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        zIndex: 9999999
+      }}>
+        <div style={{
+          width: 72, height: 72, borderRadius: '50%',
+          background: 'rgba(34, 197, 94, 0.12)',
+          border: '2px solid var(--color-credit, #22c55e)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          marginBottom: '1.25rem',
+          boxShadow: '0 0 30px rgba(34, 197, 94, 0.25)'
+        }}>
+          <Check size={38} color="var(--color-credit, #22c55e)" strokeWidth={3} />
+        </div>
+        <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.4rem 0' }}>
+          Signed in with Google!
+        </h2>
+        <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', margin: 0 }}>
+          Loading your business dashboard...
+        </p>
+      </div>
+    );
+  }
+
   if (!currentShop) {
     return (
       <div style={{ position: 'relative' }}>
