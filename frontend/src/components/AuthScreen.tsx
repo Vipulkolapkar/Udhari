@@ -187,16 +187,31 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
 
     try {
-      const { error } = await supabase.auth.verifyOtp({
+      let { error } = await supabase.auth.verifyOtp({
         email: email.trim().toLowerCase(),
         token: token,
         type: 'email'
       });
       if (error) {
-        setOtpError('Invalid verification code. Please check and try again.');
-      } else {
-        setIsEmailVerified(true);
+        const retry1 = await supabase.auth.verifyOtp({
+          email: email.trim().toLowerCase(),
+          token: token,
+          type: 'signup'
+        });
+        if (retry1.error) {
+          const retry2 = await supabase.auth.verifyOtp({
+            email: email.trim().toLowerCase(),
+            token: token,
+            type: 'magiclink'
+          });
+          if (retry2.error) {
+            setOtpError('Invalid verification code. Please check your inbox and try again.');
+            return;
+          }
+        }
       }
+      setIsEmailVerified(true);
+      setOtpError(null);
     } catch {
       setOtpError('Verification failed. Please check your code and try again.');
     } finally {
@@ -269,15 +284,30 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
 
     try {
-      const { error: verifyErr } = await supabase.auth.verifyOtp({
+      let { error: verifyErr } = await supabase.auth.verifyOtp({
         email: forgotEmail.trim().toLowerCase(),
         token: token,
         type: 'email'
       });
       if (verifyErr) {
-        throw new Error('Invalid verification code. Please check your inbox and try again.');
+        const retry1 = await supabase.auth.verifyOtp({
+          email: forgotEmail.trim().toLowerCase(),
+          token: token,
+          type: 'magiclink'
+        });
+        if (retry1.error) {
+          const retry2 = await supabase.auth.verifyOtp({
+            email: forgotEmail.trim().toLowerCase(),
+            token: token,
+            type: 'recovery'
+          });
+          if (retry2.error) {
+            throw new Error('Invalid verification code. Please check your inbox and try again.');
+          }
+        }
       }
       setForgotStep('NEW_PASSWORD');
+      setErrorMessage(null);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Verification failed.';
       setErrorMessage(msg);

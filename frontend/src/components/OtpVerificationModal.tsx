@@ -90,14 +90,33 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
     setError(null);
 
     try {
-      let verifyError;
+      let isVerified = false;
       if (isEmail) {
-        const { error } = await supabase.auth.verifyOtp({
-          email: target.trim().toLowerCase(),
+        const cleanEmail = target.trim().toLowerCase();
+        let { error } = await supabase.auth.verifyOtp({
+          email: cleanEmail,
           token: cleanToken,
           type: 'email'
         });
-        verifyError = error;
+        if (!error) {
+          isVerified = true;
+        } else {
+          const retry1 = await supabase.auth.verifyOtp({
+            email: cleanEmail,
+            token: cleanToken,
+            type: 'signup'
+          });
+          if (!retry1.error) {
+            isVerified = true;
+          } else {
+            const retry2 = await supabase.auth.verifyOtp({
+              email: cleanEmail,
+              token: cleanToken,
+              type: 'magiclink'
+            });
+            if (!retry2.error) isVerified = true;
+          }
+        }
       } else {
         const phone = target.startsWith('+') ? target : `+91${target.replace(/\D/g, '')}`;
         const { error } = await supabase.auth.verifyOtp({
@@ -105,17 +124,17 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
           token: cleanToken,
           type: 'sms'
         });
-        verifyError = error;
+        if (!error) isVerified = true;
       }
 
-      if (verifyError) {
-        setError('Invalid verification code. Please check the code and try again.');
-      } else {
+      if (isVerified) {
         setIsSuccess(true);
         setTimeout(() => {
           onVerified();
           onClose();
         }, 500);
+      } else {
+        setError('Invalid verification code. Please check your code and try again.');
       }
     } catch {
       setError('Verification failed. Please check your code and try again.');

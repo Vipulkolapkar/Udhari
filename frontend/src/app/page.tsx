@@ -145,82 +145,49 @@ export default function Home() {
     }
     refreshData().finally(() => setIsInitialized(true));
 
-    // Check if the current page load was specifically caused by an OAuth/MagicLink callback redirect in URL
-    const hasAuthHash = typeof window !== 'undefined' && (
-      window.location.hash.includes('access_token') ||
-      window.location.hash.includes('type=signup') ||
-      window.location.search.includes('code=')
-    );
-    const alreadyProcessed = typeof window !== 'undefined' && sessionStorage.getItem('udhari_oauth_processed') === 'true';
-    const isAuthRedirectLanding = hasAuthHash && !alreadyProcessed;
-
-    if (hasAuthHash && typeof window !== 'undefined') {
-      sessionStorage.setItem('udhari_oauth_processed', 'true');
-      // Clean the address bar immediately to prevent re-triggering on tab switches
-      window.history.replaceState(null, '', window.location.pathname);
-    }
-
-    // ─── Listen for Email Verification / Link Click Redirects ───
+    // ─── Listen for Google OAuth / Auth Events ───
     const handleAuthEvent = async (session: any) => {
-      if (!session?.user) return;
+      if (!session?.user?.email) return;
+      const userEmail = session.user.email.toLowerCase();
 
-      if (typeof window !== 'undefined') {
-        const pending = localStorage.getItem('udhari_pending_registration');
-        if (pending) {
-          try {
-            const shopData = JSON.parse(pending);
-            localStorage.removeItem('udhari_pending_registration');
-            const newShop = await sbRegisterShop(shopData);
-            sbSetCurrentUser(newShop);
-            await refreshData(newShop.id);
-            showToast(`Welcome! Business "${newShop.shop_name}" registered successfully!`);
-            return;
-          } catch (e) {
-            console.error('Pending registration error:', e);
-          }
-        }
+      try {
+        const allShops = await sbGetShops();
+        const matchedShop = allShops.find((s) => s.email?.toLowerCase() === userEmail);
 
-        // If no pending registration, check if user matches an existing shop
-        try {
-          const allShops = await sbGetShops();
-          const userEmail = session.user.email?.toLowerCase();
-          const matchedShop = allShops.find((s) => s.email?.toLowerCase() === userEmail);
-          
-          if (matchedShop) {
-            sbSetCurrentUser(matchedShop);
-            await refreshData(matchedShop.id);
-            showToast(`Signed in to ${matchedShop.shop_name}`);
-            return;
-          } else if (userEmail) {
-            const fullName = session.user.user_metadata?.full_name || session.user.user_metadata?.name || '';
-            setPrefilledAuth({
-              tab: 'REGISTER',
-              email: userEmail,
-              ownerName: fullName,
-              isEmailVerified: true,
-              message: `Email verified (${userEmail}). Enter business details to register.`
-            });
-            return;
-          }
-        } catch (e) {
-          console.error('Shop match error:', e);
+        if (matchedShop) {
+          sbSetCurrentUser(matchedShop);
+          await refreshData(matchedShop.id);
+          showToast(`Welcome back, ${matchedShop.owner_name || matchedShop.shop_name}!`);
+        } else {
+          // Auto-create shop profile on first-time Google sign-in
+          const fullName = session.user.user_metadata?.full_name || session.user.user_metadata?.name || userEmail.split('@')[0] || 'Store Owner';
+          const defaultShopName = fullName + "'s Store";
+          const newShop = await sbRegisterShop({
+            shop_name: defaultShopName,
+            owner_name: fullName,
+            email: userEmail,
+            phone: '9800000000',
+            shop_category: 'GENERAL'
+          });
+          sbSetCurrentUser(newShop);
+          await refreshData(newShop.id);
+          showToast(`Welcome to Udhari! Signed in as ${newShop.shop_name}`);
         }
+      } catch (e) {
+        console.error('Google Auth event error:', e);
+        await refreshData();
       }
-
-      await refreshData();
     };
 
-    // Only process redirect landing if URL explicitly contains auth token/code
-    if (isAuthRedirectLanding) {
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session?.user) {
-          handleAuthEvent(session);
-        }
-      });
-    }
+    // Check initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        handleAuthEvent(session);
+      }
+    });
 
     const { data: authSub } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && isAuthRedirectLanding) {
+      if ((event === 'SIGNED_IN' || event === 'USER_UPDATED') && session?.user) {
         await handleAuthEvent(session);
       }
     });
@@ -291,7 +258,7 @@ export default function Home() {
       sbSetCurrentUser(res.user);
       await refreshData(res.user.id);
       setIsAuthModalOpen(false);
-      showToast(`Signed in to ${res.user.shop_name}`);
+      showToast(`Welcome back, ${res.user.owner_name || res.user.shop_name}!`);
       return { success: true };
     } else {
       const errMsg = res.error || 'Account not found or incorrect credentials.';
@@ -301,7 +268,18 @@ export default function Home() {
   };
 
   const handleLoginWithGoogle = async () => {
-    showToast('Google login coming soon!');
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: typeof window !== 'undefined' ? window.location.origin : undefined,
+        },
+      });
+      if (error) throw error;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Google authentication failed.';
+      showToast(msg);
+    }
   };
 
   const handleRegisterShop = async (shopData: {
@@ -512,20 +490,31 @@ export default function Home() {
   // ─── Gamified OAuth / Verification Success Overlay ─────────────────
   if (!currentShop) {
     return (
-      <AuthScreen
-        language={language}
-        theme={theme}
-        existingShops={existingShops}
-        initialTab={prefilledAuth?.tab || 'LOGIN'}
-        initialEmail={prefilledAuth?.email || ''}
-        initialOwnerName={prefilledAuth?.ownerName || ''}
-        initialEmailVerified={prefilledAuth?.isEmailVerified || false}
-        infoBanner={prefilledAuth?.message || null}
-        onLogin={handleLoginShop}
-        onLoginWithEmail={handleLoginWithEmail}
-        onLoginWithGoogle={handleLoginWithGoogle}
-        onRegister={handleRegisterShop}
-      />
+      <div style={{ position: 'relative' }}>
+        <AuthScreen
+          language={language}
+          theme={theme}
+          existingShops={existingShops}
+          initialTab={prefilledAuth?.tab || 'LOGIN'}
+          initialEmail={prefilledAuth?.email || ''}
+          initialOwnerName={prefilledAuth?.ownerName || ''}
+          initialEmailVerified={prefilledAuth?.isEmailVerified || false}
+          infoBanner={prefilledAuth?.message || null}
+          onLogin={handleLoginShop}
+          onLoginWithEmail={handleLoginWithEmail}
+          onLoginWithGoogle={handleLoginWithGoogle}
+          onRegister={handleRegisterShop}
+        />
+        {/* Global Toast on Auth Screen */}
+        {toastMessage && (
+          <div className="toast-container" style={{ zIndex: 999999 }}>
+            <div className="toast">
+              <span style={{ color: 'var(--color-credit)', fontWeight: 700 }}>✓</span>
+              <span>{toastMessage}</span>
+            </div>
+          </div>
+        )}
+      </div>
     );
   }
 

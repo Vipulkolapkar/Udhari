@@ -244,15 +244,30 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
 
     try {
-      const { error: verifyErr } = await supabase.auth.verifyOtp({
+      let { error: verifyErr } = await supabase.auth.verifyOtp({
         email: forgotEmail.trim().toLowerCase(),
         token: token,
         type: 'email'
       });
       if (verifyErr) {
-        throw new Error('Invalid verification code. Please check your inbox and try again.');
+        const retry1 = await supabase.auth.verifyOtp({
+          email: forgotEmail.trim().toLowerCase(),
+          token: token,
+          type: 'magiclink'
+        });
+        if (retry1.error) {
+          const retry2 = await supabase.auth.verifyOtp({
+            email: forgotEmail.trim().toLowerCase(),
+            token: token,
+            type: 'recovery'
+          });
+          if (retry2.error) {
+            throw new Error('Invalid verification code. Please check your inbox and try again.');
+          }
+        }
       }
       setForgotStep('NEW_PASSWORD');
+      setErrorMessage(null);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Verification failed.';
       setErrorMessage(msg);
