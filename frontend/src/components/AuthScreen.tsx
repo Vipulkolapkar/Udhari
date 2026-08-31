@@ -391,7 +391,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
     setIsLoggingIn(true);
     try {
       const res = await onLoginWithEmail(identifier, loginPassword, loginMethod);
-      if (res && !res.success && res.error) {
+      if (res && res.success) {
+        setSuccessMessage('Signed in successfully! Loading your workspace...');
+      } else if (res && !res.success && res.error) {
         setErrorMessage(res.error);
       }
     } catch (err: unknown) {
