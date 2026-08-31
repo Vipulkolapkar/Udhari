@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, BookOpen, ChevronDown, ChevronUp, Calendar, User, ShoppingBag, ArrowDownLeft, Trash2, Plus, Download } from 'lucide-react';
-import { Customer, Invoice, Payment, Language } from '../types';
+import { X, BookOpen, ChevronDown, ChevronUp, Calendar, User, ShoppingBag, ArrowDownLeft, Trash2, Plus, Download, Printer, FileSpreadsheet } from 'lucide-react';
+import { printCustomerStatement, downloadCustomerCsv } from '../lib/statementExport';
+import { Customer, Invoice, Payment, Language, ShopUser } from '../types';
 import { getTranslation } from '../lib/translations';
 
 interface LedgerModalProps {
@@ -10,6 +11,7 @@ interface LedgerModalProps {
   invoices: Invoice[];
   payments: Payment[];
   language: Language;
+  currentShop?: ShopUser | null;
   onClose: () => void;
   onGiveCreditClick?: (customer: Customer) => void;
   onGotPaymentClick?: (customer: Customer) => void;
@@ -21,6 +23,7 @@ export const LedgerModal: React.FC<LedgerModalProps> = ({
   invoices,
   payments,
   language,
+  currentShop,
   onClose,
   onGiveCreditClick,
   onGotPaymentClick,
@@ -45,53 +48,7 @@ export const LedgerModal: React.FC<LedgerModalProps> = ({
   const totalCreditGiven = invoices.reduce((sum, inv) => sum + (inv.total_amount || 0), 0);
   const totalPaymentReceived = payments.reduce((sum, pay) => sum + (pay.amount || 0), 0);
 
-  // Download Individual Customer Statement CSV
-  const handleDownloadStatement = () => {
-    // Sort oldest to newest for sequential running balance
-    const chronological = [...timeline].reverse();
 
-    let runningBalance = 0;
-    let csv = `Customer Account Statement\n`;
-    csv += `Customer Name,"${customer.name.replace(/"/g, '""')}"\n`;
-    csv += `Mobile Number,"${customer.phone}"\n`;
-    if (customer.address_landmark) csv += `Address,"${customer.address_landmark.replace(/"/g, '""')}"\n`;
-    csv += `Total Credit Taken (INR),${totalCreditGiven}\n`;
-    csv += `Total Paid (INR),${totalPaymentReceived}\n`;
-    csv += `Current Balance Due (INR),${customer.current_balance}\n`;
-    csv += `Statement Generated On,"${new Date().toLocaleDateString('en-IN')} ${new Date().toLocaleTimeString('en-IN')}"\n\n`;
-
-    csv += `Date,Time,Transaction Type,Reference #,Details / Items,Debit (+) INR,Credit (-) INR,Running Balance INR\n`;
-
-    chronological.forEach((entry) => {
-      const dt = new Date(entry.date);
-      const dateStr = dt.toLocaleDateString('en-IN');
-      const timeStr = dt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-
-      if (entry.type === 'INVOICE') {
-        const inv = entry.data as Invoice;
-        runningBalance += inv.total_amount;
-        const itemSummary = (inv.items || []).map((i) => `${i.item_name} (x${i.quantity})`).join('; ') || inv.notes || 'Credit Bill';
-        csv += `"${dateStr}","${timeStr}","Credit Bill","${inv.invoice_number}","${itemSummary.replace(/"/g, '""')}",${inv.total_amount},0,${runningBalance}\n`;
-      } else {
-        const pay = entry.data as Payment;
-        runningBalance = Math.max(0, runningBalance - pay.amount);
-        const payNote = pay.reference_note ? `${pay.payment_mode} - ${pay.reference_note}` : pay.payment_mode;
-        csv += `"${dateStr}","${timeStr}","Payment Received","${pay.receipt_number}","${payNote.replace(/"/g, '""')}",0,${pay.amount},${runningBalance}\n`;
-      }
-    });
-
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute(
-      'download',
-      `${customer.name.replace(/\s+/g, '_')}_statement_${new Date().toISOString().slice(0, 10)}.csv`
-    );
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-  };
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -182,12 +139,23 @@ export const LedgerModal: React.FC<LedgerModalProps> = ({
           <button
             type="button"
             className="btn btn-outline"
-            style={{ flex: '1 1 140px', padding: '0.5rem 0.85rem', fontSize: '0.84rem', fontWeight: 700 }}
-            onClick={handleDownloadStatement}
-            title="Download Customer Statement (Excel / CSV)"
+            style={{ flex: '1 1 120px', padding: '0.5rem 0.85rem', fontSize: '0.84rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+            onClick={() => printCustomerStatement(currentShop || null, customer, invoices, payments)}
+            title="Print or Save as PDF Statement"
           >
-            <Download size={14} />
-            <span>Download Statement</span>
+            <Printer size={14} />
+            <span>PDF Statement</span>
+          </button>
+
+          <button
+            type="button"
+            className="btn btn-outline"
+            style={{ flex: '1 1 110px', padding: '0.5rem 0.85rem', fontSize: '0.84rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+            onClick={() => downloadCustomerCsv(currentShop || null, customer, invoices, payments)}
+            title="Download formatted Excel-compatible CSV"
+          >
+            <FileSpreadsheet size={14} />
+            <span>Excel CSV</span>
           </button>
         </div>
 
