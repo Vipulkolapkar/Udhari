@@ -159,19 +159,17 @@ export default function Home() {
           await refreshData(matchedShop.id);
           showToast(`Welcome back, ${matchedShop.owner_name || matchedShop.shop_name}!`);
         } else {
-          // Auto-create shop profile on first-time Google sign-in
-          const fullName = session.user.user_metadata?.full_name || session.user.user_metadata?.name || userEmail.split('@')[0] || 'Store Owner';
-          const defaultShopName = fullName + "'s Store";
-          const newShop = await sbRegisterShop({
-            shop_name: defaultShopName,
-            owner_name: fullName,
+          // If no account exists for this Google email, display corresponding message and guide to register
+          await supabase.auth.signOut().catch(() => {});
+          const fullName = session.user.user_metadata?.full_name || session.user.user_metadata?.name || '';
+          setPrefilledAuth({
+            tab: 'REGISTER',
             email: userEmail,
-            phone: '9800000000',
-            shop_category: 'GENERAL'
+            ownerName: fullName,
+            isEmailVerified: true,
+            message: `No registered business found for "${userEmail}". Please complete registration below to create your account.`
           });
-          sbSetCurrentUser(newShop);
-          await refreshData(newShop.id);
-          showToast(`Welcome to Udhari! Signed in as ${newShop.shop_name}`);
+          showToast(`No registered account found for ${userEmail}. Please register.`);
         }
       } catch (e) {
         console.error('Google Auth event error:', e);
