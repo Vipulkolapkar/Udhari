@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Store,
   User,
@@ -24,7 +24,8 @@ import {
   ArrowLeft,
   Users,
   Activity,
-  Layers
+  Layers,
+  Loader2
 } from 'lucide-react';
 import { ShopUser, Customer, Invoice, Payment, ShopCategory } from '../types';
 import { categoryLabels } from '../lib/translations';
@@ -36,7 +37,7 @@ interface ProfileViewProps {
   invoices: Invoice[];
   payments: Payment[];
   onBackToDashboard: () => void;
-  onSaveShopSettings: (updatedShop: Partial<ShopUser>) => void;
+  onSaveShopSettings: (updatedShop: Partial<ShopUser>) => Promise<ShopUser | null | void> | void;
 }
 
 type FilterType = 'ALL' | 'CREDIT_GIVEN' | 'PAYMENT_RECEIVED';
@@ -60,14 +61,33 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [email, setEmail] = useState(currentShop?.email || '');
   const [gstin, setGstin] = useState(currentShop?.gstin || '');
   const [category, setCategory] = useState<ShopCategory>(currentShop?.shop_category || 'GENERAL');
+  const [customCategory, setCustomCategory] = useState(currentShop?.custom_category || '');
   const [address, setAddress] = useState(currentShop?.address || '');
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   // OTP Verification
   const [isPhoneVerified, setIsPhoneVerified] = useState(true);
   const [isEmailVerified, setIsEmailVerified] = useState(true);
   const [otpModal, setOtpModal] = useState<{ type: 'PHONE' | 'EMAIL'; target: string } | null>(null);
+
+  // Sync state whenever currentShop updates from parent
+  useEffect(() => {
+    if (currentShop) {
+      setShopName(currentShop.shop_name || '');
+      setOwnerName(currentShop.owner_name || '');
+      setPhone(currentShop.phone || '');
+      setWhatsappPhone(currentShop.whatsapp_phone || currentShop.phone || '');
+      setEmail(currentShop.email || '');
+      setGstin(currentShop.gstin || '');
+      setCategory(currentShop.shop_category || 'GENERAL');
+      setCustomCategory(currentShop.custom_category || '');
+      setAddress(currentShop.address || '');
+      setIsPhoneVerified(true);
+      setIsEmailVerified(true);
+    }
+  }, [currentShop]);
 
   // Activity Log Filters & Sorting
   const [filterType, setFilterType] = useState<FilterType>('ALL');
@@ -125,11 +145,11 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
   // Aggregate Business Metrics
   const totalCreditIssued = useMemo(
-    () => invoices.reduce((sum, inv) => sum + inv.total_amount, 0),
+    () => invoices.reduce((sum, inv) => sum + (inv.total_amount || 0), 0),
     [invoices]
   );
   const totalCollected = useMemo(
-    () => payments.reduce((sum, pay) => sum + pay.amount, 0),
+    () => payments.reduce((sum, pay) => sum + (pay.amount || 0), 0),
     [payments]
   );
   const totalOutstanding = useMemo(
@@ -183,22 +203,31 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     // Sorting by Priority / Date / Amount
     result.sort((a, b) => {
       if (sortBy === 'AMOUNT_DESC') {
-        return b.amount - a.amount; // Priority Highest Amount
+        return b.amount - a.amount;
       } else if (sortBy === 'AMOUNT_ASC') {
-        return a.amount - b.amount; // Priority Lowest Amount
+        return a.amount - b.amount;
       } else if (sortBy === 'DATE_ASC') {
         return new Date(a.date).getTime() - new Date(b.date).getTime();
       } else {
-        return new Date(b.date).getTime() - new Date(a.date).getTime(); // Default Newest
+        return new Date(b.date).getTime() - new Date(a.date).getTime();
       }
     });
 
     return result;
   }, [unifiedTransactions, filterType, dateRange, sortBy, searchQuery]);
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setProfileError(null);
+
+    if (!shopName.trim()) {
+      setProfileError('Business name is required.');
+      return;
+    }
+    if (!ownerName.trim()) {
+      setProfileError('Owner name is required.');
+      return;
+    }
 
     const cleanEmail = email.trim().toLowerCase();
     const currentEmail = (currentShop?.email || '').trim().toLowerCase();
@@ -210,20 +239,29 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       return;
     }
 
-    onSaveShopSettings({
-      shop_name: shopName.trim(),
-      owner_name: ownerName.trim(),
-      phone: phone.trim(),
-      whatsapp_phone: whatsappPhone.trim() || phone.trim(),
-      email: cleanEmail || undefined,
-      gstin: gstin.trim() || undefined,
-      shop_category: category,
-      address: address.trim() || undefined
-    });
-    setSaveSuccess(true);
-    setIsEditing(false);
-    setProfileError(null);
-    setTimeout(() => setSaveSuccess(false), 2500);
+    setIsSaving(true);
+    try {
+      await onSaveShopSettings({
+        shop_name: shopName.trim(),
+        owner_name: ownerName.trim(),
+        phone: phone.trim(),
+        whatsapp_phone: whatsappPhone.trim() || phone.trim(),
+        email: cleanEmail || undefined,
+        gstin: gstin.trim() || undefined,
+        shop_category: category,
+        custom_category: category === 'OTHER' ? customCategory.trim() : undefined,
+        address: address.trim() || undefined
+      });
+      setSaveSuccess(true);
+      setIsEditing(false);
+      setProfileError(null);
+      setTimeout(() => setSaveSuccess(false), 2500);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to save profile changes.';
+      setProfileError(msg);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -262,7 +300,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           <button
             type="button"
             className="btn btn-primary"
-            onClick={() => setIsEditing(true)}
+            onClick={() => {
+              setProfileError(null);
+              setIsEditing(true);
+            }}
             style={{ fontWeight: 600 }}
           >
             <Edit3 size={14} />
@@ -319,7 +360,11 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               <button
                 type="button"
                 className="btn btn-outline"
-                onClick={() => setIsEditing(false)}
+                onClick={() => {
+                  setIsEditing(false);
+                  setProfileError(null);
+                }}
+                disabled={isSaving}
                 style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem' }}
               >
                 Cancel
@@ -334,6 +379,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   className="form-input"
                   value={shopName}
                   onChange={(e) => setShopName(e.target.value)}
+                  disabled={isSaving}
                   required
                 />
               </div>
@@ -345,6 +391,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   className="form-input"
                   value={ownerName}
                   onChange={(e) => setOwnerName(e.target.value)}
+                  disabled={isSaving}
                   required
                 />
               </div>
@@ -352,28 +399,13 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
               <div className="form-group">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
-                  <label className="form-label" style={{ margin: 0 }}>Login Phone Number *</label>
-                  {isPhoneVerified ? (
-                    <span style={{ fontSize: '0.72rem', color: 'var(--color-credit)', fontWeight: 700 }}>✓ Verified</span>
-                  ) : phone.length >= 10 ? (
-                    <button
-                      type="button"
-                      style={{ background: 'none', border: 'none', color: 'var(--text-primary)', fontSize: '0.72rem', fontWeight: 700, textDecoration: 'underline', cursor: 'pointer' }}
-                      onClick={() => setOtpModal({ type: 'PHONE', target: phone })}
-                    >
-                      Verify OTP
-                    </button>
-                  ) : null}
-                </div>
+                <label className="form-label">Login Mobile Number</label>
                 <input
                   type="tel"
                   className="form-input"
                   value={phone}
-                  onChange={(e) => {
-                    setPhone(e.target.value);
-                    if (e.target.value !== currentShop?.phone) setIsPhoneVerified(false);
-                  }}
+                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  disabled={isSaving}
                   required
                 />
               </div>
@@ -384,7 +416,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   type="tel"
                   className="form-input"
                   value={whatsappPhone}
-                  onChange={(e) => setWhatsappPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                  onChange={(e) => setWhatsappPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  disabled={isSaving}
                   required
                 />
               </div>
@@ -400,9 +433,9 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                     <button
                       type="button"
                       style={{ background: 'none', border: 'none', color: 'var(--text-primary)', fontSize: '0.72rem', fontWeight: 700, textDecoration: 'underline', cursor: 'pointer' }}
-                      onClick={() => setOtpModal({ type: 'EMAIL', target: email })}
+                      onClick={() => setOtpModal({ type: 'EMAIL', target: email.trim().toLowerCase() })}
                     >
-                      Verify OTP
+                      Verify with OTP
                     </button>
                   ) : null}
                 </div>
@@ -420,6 +453,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                         setIsEmailVerified(true);
                       }
                     }}
+                    disabled={isSaving}
                     style={{ flex: 1 }}
                   />
                   {!isEmailVerified && email.includes('@') && (
@@ -428,6 +462,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                       className="btn btn-outline"
                       style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem', fontWeight: 600, whiteSpace: 'nowrap' }}
                       onClick={() => setOtpModal({ type: 'EMAIL', target: email.trim().toLowerCase() })}
+                      disabled={isSaving}
                     >
                       Verify OTP
                     </button>
@@ -442,6 +477,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   className="form-input"
                   value={gstin}
                   onChange={(e) => setGstin(e.target.value)}
+                  disabled={isSaving}
                 />
               </div>
             </div>
@@ -453,6 +489,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   className="form-select"
                   value={category}
                   onChange={(e) => setCategory(e.target.value as ShopCategory)}
+                  disabled={isSaving}
                 >
                   <option value="KIRANA">{categoryLabels.KIRANA.en}</option>
                   <option value="STATIONERY">{categoryLabels.STATIONERY.en}</option>
@@ -460,8 +497,19 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   <option value="HARDWARE">{categoryLabels.HARDWARE.en}</option>
                   <option value="CLOTHING">{categoryLabels.CLOTHING.en}</option>
                   <option value="GENERAL">{categoryLabels.GENERAL.en}</option>
-                    <option value="OTHER">{categoryLabels.OTHER.en}</option>
+                  <option value="OTHER">{categoryLabels.OTHER.en}</option>
                 </select>
+                {category === 'OTHER' && (
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="Specify business type"
+                    value={customCategory}
+                    onChange={(e) => setCustomCategory(e.target.value)}
+                    style={{ marginTop: '0.5rem' }}
+                    disabled={isSaving}
+                  />
+                )}
               </div>
 
               <div className="form-group">
@@ -471,17 +519,40 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   className="form-input"
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
+                  disabled={isSaving}
                 />
               </div>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
-              <button type="button" className="btn btn-outline" onClick={() => setIsEditing(false)}>
+              <button
+                type="button"
+                className="btn btn-outline"
+                onClick={() => {
+                  setIsEditing(false);
+                  setProfileError(null);
+                }}
+                disabled={isSaving}
+              >
                 Cancel
               </button>
-              <button type="submit" className="btn btn-primary">
-                <Check size={14} />
-                <span>Save Profile Changes</span>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={isSaving}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontWeight: 700 }}
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 size={15} style={{ animation: 'spin 0.8s linear infinite' }} />
+                    <span>Saving Changes...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check size={14} />
+                    <span>Save Profile Changes</span>
+                  </>
+                )}
               </button>
             </div>
           </form>
@@ -511,7 +582,9 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.65rem', marginTop: '0.2rem' }}>
                     <span><strong>Owner:</strong> {currentShop?.owner_name || 'Merchant'}</span>
                     <span>•</span>
-                    <span style={{ color: 'var(--text-muted)' }}>Category: {categoryLabels[currentShop?.shop_category || 'GENERAL']?.en || 'General'}</span>
+                    <span style={{ color: 'var(--text-muted)' }}>
+                      Category: {currentShop?.shop_category === 'OTHER' && currentShop?.custom_category ? currentShop.custom_category : categoryLabels[currentShop?.shop_category || 'GENERAL']?.en || 'General'}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -566,7 +639,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   <Mail size={12} /> Email Address
                 </span>
                 <div style={{ fontSize: '0.92rem', fontWeight: 600, color: 'var(--text-primary)', marginTop: '0.2rem' }}>
-                  {currentShop?.email || 'Not provided'}
+                  {currentShop?.email || 'Not provided'} {currentShop?.email ? <span style={{ fontSize: '0.7rem', color: 'var(--color-credit)' }}>✓ Verified</span> : null}
                 </div>
               </div>
 
@@ -584,7 +657,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   <MapPin size={12} /> Business Address
                 </span>
                 <div style={{ fontSize: '0.88rem', fontWeight: 500, color: 'var(--text-primary)', marginTop: '0.2rem' }}>
-                  {currentShop?.address || 'Main Road, Market Yard, Pune, Maharashtra'}
+                  {currentShop?.address || 'Not provided'}
                 </div>
               </div>
             </div>
@@ -726,7 +799,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           </div>
         </div>
 
-        {/* Interactive Controls Bar: Types, Date Range, Sort Priority, Search */}
+        {/* Interactive Controls Bar */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
@@ -738,7 +811,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           borderRadius: 'var(--radius-sm)',
           border: '1px solid var(--border-subtle)'
         }}>
-          {/* Filter Type Chips (All, Credit Given, Payments Received) */}
+          {/* Filter Type Chips */}
           <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
             <button
               type="button"
@@ -928,6 +1001,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         <OtpVerificationModal
           type={otpModal.type}
           target={otpModal.target}
+          currentShopId={currentShop?.id}
           onClose={() => setOtpModal(null)}
           onVerified={() => {
             if (otpModal.type === 'PHONE') {

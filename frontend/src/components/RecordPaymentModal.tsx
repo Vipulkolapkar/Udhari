@@ -33,11 +33,17 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
   const [receivedBy, setReceivedBy] = useState('Self');
   const [referenceNote, setReferenceNote] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
     const numAmount = Number(amount) || 0;
-    if (numAmount <= 0 || !receivedBy.trim() || !paymentDate || isSubmitting) return;
+    if (numAmount <= 0) {
+      setError('Please enter a valid payment amount greater than 0.');
+      return;
+    }
+    if (!receivedBy.trim() || !paymentDate || isSubmitting) return;
 
     setIsSubmitting(true);
     if (numAmount >= customer.current_balance) {
@@ -62,6 +68,9 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
         0,
         fullNote
       );
+    } catch (err: any) {
+      console.error('Payment submit error:', err);
+      setError(err?.message || 'Failed to record payment. Please check your connection and try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -90,6 +99,20 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
 
         <form onSubmit={handleSubmit}>
           <div className="modal-body">
+            {error && (
+              <div style={{
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                color: '#ef4444',
+                padding: '0.6rem 0.8rem',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: '0.8rem',
+                marginBottom: '0.6rem',
+                lineHeight: 1.4
+              }}>
+                {error}
+              </div>
+            )}
             {/* Outstanding Balance Banner */}
             <div style={{
               background: 'var(--bg-surface-elevated)',

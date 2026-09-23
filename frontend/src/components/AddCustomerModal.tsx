@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, UserPlus, Loader2 } from 'lucide-react';
+import { X, UserPlus, Loader2, AlertCircle } from 'lucide-react';
 import { Language } from '../types';
 import { getTranslation } from '../lib/translations';
 
@@ -27,12 +27,13 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
   const [phone, setPhone] = useState('');
   const [landmark, setLandmark] = useState('');
   const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handlePhoneChange = (val: string) => {
-    // Strictly allow ONLY numeric digits (0-9) and limit to max 10 digits
     const digitsOnly = val.replace(/\D/g, '').slice(0, 10);
     setPhone(digitsOnly);
+    setSubmitError(null);
     if (digitsOnly.length > 0 && digitsOnly.length < 10) {
       setPhoneError('Mobile number must be exactly 10 digits');
     } else {
@@ -42,6 +43,7 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitError(null);
     const cleanPhone = phone.replace(/\D/g, '').slice(0, 10);
     if (!name.trim()) return;
 
@@ -58,6 +60,9 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
         address_landmark: landmark.trim() || undefined,
         credit_limit: 9999999
       });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to add customer.';
+      setSubmitError(msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -78,6 +83,25 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
 
         <form onSubmit={handleSubmit}>
           <div className="modal-body">
+            {submitError && (
+              <div style={{
+                background: 'var(--color-debit-bg)',
+                border: '1px solid var(--color-debit-border)',
+                color: 'var(--color-debit)',
+                padding: '0.65rem 0.85rem',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                marginBottom: '1rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.45rem'
+              }}>
+                <AlertCircle size={15} style={{ flexShrink: 0 }} />
+                <span>{submitError}</span>
+              </div>
+            )}
+
             {/* Customer Name */}
             <div className="form-group">
               <label className="form-label">{t.customerNameLabel} *</label>
@@ -86,7 +110,10 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
                 className="form-input"
                 placeholder="e.g. John Doe"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  setSubmitError(null);
+                }}
                 required
                 disabled={isSubmitting}
                 autoFocus
@@ -123,7 +150,10 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
                 className="form-input"
                 placeholder="e.g. Near Shivaji Chowk, Flat 202"
                 value={landmark}
-                onChange={(e) => setLandmark(e.target.value)}
+                onChange={(e) => {
+                  setLandmark(e.target.value);
+                  setSubmitError(null);
+                }}
                 disabled={isSubmitting}
               />
             </div>
@@ -136,7 +166,7 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
             <button
               type="submit"
               className="btn btn-primary"
-              disabled={isSubmitting || (phone.length > 0 && phone.length < 10)}
+              disabled={isSubmitting || !name.trim() || phone.length < 10}
               style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}
             >
               {isSubmitting ? (

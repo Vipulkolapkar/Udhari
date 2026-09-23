@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, Plus, Trash2, Loader2, ShoppingBag, ArrowDownLeft } from 'lucide-react';
+import { X, Plus, Trash2, Loader2, ShoppingBag, AlertCircle } from 'lucide-react';
 import { Customer, InvoiceItem, Language, ShopUser, PaymentMode } from '../types';
 import { getTranslation } from '../lib/translations';
 
@@ -27,7 +27,6 @@ interface CreateBillModalProps {
 
 export const CreateBillModal: React.FC<CreateBillModalProps> = ({
   customer,
-  currentShop,
   language,
   onClose,
   onSubmit
@@ -48,6 +47,7 @@ export const CreateBillModal: React.FC<CreateBillModalProps> = ({
   const [dueDate, setDueDate] = useState(defaultDueDate);
   const [advancePaid, setAdvancePaid] = useState<number | ''>('');
   const [advancePaymentMode, setAdvancePaymentMode] = useState<PaymentMode>('CASH');
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const addItemRow = (name = '', price = 0, quantity = 1) => {
@@ -63,10 +63,21 @@ export const CreateBillModal: React.FC<CreateBillModalProps> = ({
   };
 
   const updateItem = (id: string, field: 'name' | 'quantity' | 'price', value: string | number) => {
+    setSubmitError(null);
     setItems((prev) =>
       prev.map((item) => {
         if (item.id === id) {
-          return { ...item, [field]: value };
+          if (field === 'name') {
+            return { ...item, name: String(value) };
+          }
+          if (field === 'quantity') {
+            const num = Math.max(1, Math.floor(Number(value) || 1));
+            return { ...item, quantity: num };
+          }
+          if (field === 'price') {
+            const num = Math.max(0, Number(value) || 0);
+            return { ...item, price: num };
+          }
         }
         return item;
       })
@@ -79,6 +90,7 @@ export const CreateBillModal: React.FC<CreateBillModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitError(null);
     if (netTotal <= 0 || !takenBy.trim() || !dueDate || isSubmitting) return;
 
     setIsSubmitting(true);
@@ -101,6 +113,9 @@ export const CreateBillModal: React.FC<CreateBillModalProps> = ({
         advance_paid: numAdvance > 0 ? numAdvance : undefined,
         advance_payment_mode: numAdvance > 0 ? advancePaymentMode : undefined
       });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to save bill.';
+      setSubmitError(msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -121,6 +136,25 @@ export const CreateBillModal: React.FC<CreateBillModalProps> = ({
 
         <form onSubmit={handleSubmit}>
           <div className="modal-body">
+            {submitError && (
+              <div style={{
+                background: 'var(--color-debit-bg)',
+                border: '1px solid var(--color-debit-border)',
+                color: 'var(--color-debit)',
+                padding: '0.65rem 0.85rem',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                marginBottom: '1rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.45rem'
+              }}>
+                <AlertCircle size={15} style={{ flexShrink: 0 }} />
+                <span>{submitError}</span>
+              </div>
+            )}
+
             {/* Items Table */}
             <div className="form-group">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
@@ -163,7 +197,7 @@ export const CreateBillModal: React.FC<CreateBillModalProps> = ({
                       className="form-input"
                       placeholder="Qty"
                       value={item.quantity}
-                      onChange={(e) => updateItem(item.id, 'quantity', Math.max(1, Number(e.target.value)))}
+                      onChange={(e) => updateItem(item.id, 'quantity', e.target.value)}
                       disabled={isSubmitting}
                       required
                     />
@@ -174,7 +208,7 @@ export const CreateBillModal: React.FC<CreateBillModalProps> = ({
                       className="form-input"
                       placeholder="Rate"
                       value={item.price || ''}
-                      onChange={(e) => updateItem(item.id, 'price', Number(e.target.value))}
+                      onChange={(e) => updateItem(item.id, 'price', e.target.value)}
                       disabled={isSubmitting}
                       required
                     />
@@ -241,7 +275,7 @@ export const CreateBillModal: React.FC<CreateBillModalProps> = ({
                     className="form-input"
                     placeholder="0"
                     value={advancePaid}
-                    onChange={(e) => setAdvancePaid(e.target.value === '' ? '' : Math.min(netTotal, Number(e.target.value)))}
+                    onChange={(e) => setAdvancePaid(e.target.value === '' ? '' : Math.max(0, Math.min(netTotal, Number(e.target.value))))}
                     disabled={isSubmitting}
                   />
                 </div>

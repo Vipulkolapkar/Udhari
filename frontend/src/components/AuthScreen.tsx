@@ -1,24 +1,15 @@
 'use client';
-import { validatePasswordStrength, getPasswordRuleStatus } from '../lib/validation';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  Store,
-  Lock,
   Eye,
   EyeOff,
-  User,
-  ShieldCheck,
   AlertCircle,
   CheckCircle,
-  RefreshCw,
-  Mail,
-  Phone,
   ArrowLeft,
-  Loader2,
-  KeyRound,
-  ArrowRight
+  Loader2
 } from 'lucide-react';
+import { validatePasswordStrength, getPasswordRuleStatus } from '../lib/validation';
 import { ShopUser, ShopCategory, Language, ThemeMode } from '../types';
 import { getTranslation, categoryLabels } from '../lib/translations';
 import { UdhariLogo } from './UdhariLogo';
@@ -49,7 +40,7 @@ interface AuthScreenProps {
     custom_category?: string;
     address?: string;
     terms_accepted?: boolean;
-  }) => void;
+  }) => Promise<any> | any;
 }
 
 export const AuthScreen: React.FC<AuthScreenProps> = ({
@@ -170,6 +161,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         setIsSendingOtp(false);
         return;
       }
+
       const { error } = await supabase.auth.signInWithOtp({
         email: cleanEmail,
         options: {
@@ -197,8 +189,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
     setIsVerifyingOtp(true);
     setOtpError(null);
-
-
 
     try {
       let { error } = await supabase.auth.verifyOtp({
@@ -294,8 +284,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
     setIsVerifyingForgotOtp(true);
     setErrorMessage(null);
-
-
 
     try {
       let { error: verifyErr } = await supabase.auth.verifyOtp({
@@ -422,7 +410,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   };
 
   // ─── Register Submit ──────────────────────────────────────────────
-  const handleRegisterSubmit = (e: React.FormEvent) => {
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
     setSuccessMessage(null);
@@ -458,12 +446,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
     setIsRegistering(true);
     try {
-      onRegister({
+      await onRegister({
         shop_name: shopName.trim(),
         owner_name: ownerName.trim(),
         phone: cleanPhone,
         whatsapp_phone: cleanPhone,
-        email: email.trim().toLowerCase(),
+        email: cleanEmail,
         password: registerPassword,
         shop_category: category,
         custom_category: category === 'OTHER' ? customCategory.trim() : undefined,
@@ -473,6 +461,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Registration failed.';
       setErrorMessage(msg);
+    } finally {
       setIsRegistering(false);
     }
   };
@@ -967,6 +956,45 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               })()}
             </div>
 
+            {/* Business Category */}
+            <div className="form-group">
+              <label className="form-label">Business Category *</label>
+              <select
+                className="form-select"
+                value={category}
+                onChange={(e) => setCategory(e.target.value as ShopCategory)}
+              >
+                <option value="KIRANA">{categoryLabels.KIRANA.en}</option>
+                <option value="STATIONERY">{categoryLabels.STATIONERY.en}</option>
+                <option value="MEDICAL">{categoryLabels.MEDICAL.en}</option>
+                <option value="HARDWARE">{categoryLabels.HARDWARE.en}</option>
+                <option value="CLOTHING">{categoryLabels.CLOTHING.en}</option>
+                <option value="GENERAL">{categoryLabels.GENERAL.en}</option>
+                <option value="OTHER">{categoryLabels.OTHER.en}</option>
+              </select>
+              {category === 'OTHER' && (
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Specify business type"
+                  value={customCategory}
+                  onChange={(e) => setCustomCategory(e.target.value)}
+                  style={{ marginTop: '0.45rem' }}
+                />
+              )}
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Business Address (Optional)</label>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="e.g. Shop #4, Market Yard, Pune"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+              />
+            </div>
+
             <button
               type="submit"
               className="btn btn-primary"
@@ -1072,7 +1100,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               </form>
             )}
 
-            {/* ── STEP 2: Enter & Verify Code (ONLY Code shown here!) ── */}
+            {/* ── STEP 2: Enter & Verify Code ── */}
             {forgotStep === 'OTP' && (
               <form onSubmit={(e) => { e.preventDefault(); handleVerifyForgotCode(); }} style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
                 <div>
@@ -1135,12 +1163,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                     <span>Verify Code</span>
                   )}
                 </button>
-
-
               </form>
             )}
 
-            {/* ── STEP 3: Create New Password (ONLY shown after OTP verified!) ── */}
+            {/* ── STEP 3: Create New Password ── */}
             {forgotStep === 'NEW_PASSWORD' && (
               <form onSubmit={handleResetPasswordSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
                 <div>
@@ -1183,7 +1209,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                     </button>
                   </div>
 
-                  {/* Dynamic Password Strength Checklist */}
+                  {/* Password Strength Checklist */}
                   {(() => {
                     const r = getPasswordRuleStatus(forgotNewPassword);
                     return (

@@ -259,7 +259,7 @@ export default function Home() {
     if (res.user) {
       sbSetCurrentUser(res.user);
       await refreshData(res.user.id);
-        showToast(`Welcome back, ${res.user.owner_name || res.user.shop_name}!`);
+      showToast(`Welcome back, ${res.user.owner_name || res.user.shop_name}!`);
       return { success: true };
     } else {
       const errMsg = res.error || 'Account not found or incorrect credentials.';
@@ -292,16 +292,19 @@ export default function Home() {
     password?: string;
     gstin?: string;
     shop_category: ShopCategory;
+    custom_category?: string;
     address?: string;
     terms_accepted?: boolean;
   }) => {
     try {
       const newShop = await sbRegisterShop(shopData);
       await refreshData(newShop.id);
-        showToast(`Welcome! Business "${newShop.shop_name}" registered successfully!`);
-    } catch (err) {
-      showToast('Registration failed. Please try again.', 'error');
-      console.error(err);
+      showToast(`Welcome! Business "${newShop.shop_name}" registered successfully!`);
+      return newShop;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Registration failed. Please try again.';
+      showToast(msg, 'error');
+      throw err;
     }
   };
 
@@ -313,6 +316,7 @@ export default function Home() {
       console.error(e);
     }
     if (typeof window !== 'undefined') {
+      localStorage.removeItem('udhari_current_shop_id');
       localStorage.removeItem('khata_current_shop_id_v1');
       sessionStorage.clear();
     }
@@ -329,12 +333,19 @@ export default function Home() {
 
   // ─── Shop Profile Update ──────────────────────────────────────────
   const handleSaveShopSettings = async (updatedData: Partial<ShopUser>) => {
-    if (currentShop) {
+    if (!currentShop) return;
+    try {
       const updated = await sbUpdateShop(currentShop.id, updatedData);
       if (updated) {
         setCurrentShop(updated);
+        setExistingShops((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
         showToast(t.settingsSavedSuccess);
+        return updated;
       }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to update business profile.';
+      showToast(msg, 'error');
+      throw err;
     }
   };
 
@@ -363,9 +374,11 @@ export default function Home() {
       } else {
         showToast(t.billCreatedSuccess);
       }
-    } catch (err) {
-      showToast('Failed to create bill. Try again.', 'error');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to create bill. Try again.';
+      showToast(msg, 'error');
       console.error(err);
+      throw err;
     }
   };
 
@@ -384,9 +397,11 @@ export default function Home() {
       await refreshData(currentShop.id);
       setPaymentModalCustomer(null);
       showToast(t.recordPaymentSuccess);
-    } catch (err) {
-      showToast('Failed to record payment. Try again.', 'error');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to record payment. Try again.';
+      showToast(msg, 'error');
       console.error(err);
+      throw err;
     }
   };
 
@@ -447,9 +462,11 @@ export default function Home() {
       await refreshData(currentShop.id);
       setIsAddCustomerOpen(false);
       showToast(`Added customer ${newCust.name}`);
-    } catch (err) {
-      showToast('Failed to add customer. Try again.', 'error');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to add customer. Try again.';
+      showToast(msg, 'error');
       console.error(err);
+      throw err;
     }
   };
 

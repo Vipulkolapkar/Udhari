@@ -1,5 +1,4 @@
 'use client';
-import { validatePasswordStrength, getPasswordRuleStatus } from '../lib/validation';
 
 import React, { useState } from 'react';
 import {
@@ -9,14 +8,13 @@ import {
   Shield,
   RotateCcw,
   Check,
-  Lock,
   Download,
   FileSpreadsheet,
   Trash2,
   Loader2
 } from 'lucide-react';
+import { validatePasswordStrength, getPasswordRuleStatus } from '../lib/validation';
 import { ShopUser, Language, ThemeMode, Customer, Invoice, Payment } from '../types';
-import { getTranslation } from '../lib/translations';
 import { sbGetCustomers, sbGetInvoices, sbGetPayments, sbWipeAllShopData } from '../lib/supabaseStore';
 
 interface SettingsViewProps {
@@ -29,7 +27,7 @@ interface SettingsViewProps {
   onLanguageChange: (lang: Language) => void;
   onThemeChange: (theme: ThemeMode) => void;
   onResetData: () => void;
-  onSaveShopSettings: (updatedShop: Partial<ShopUser>) => void;
+  onSaveShopSettings: (updatedShop: Partial<ShopUser>) => Promise<ShopUser | null | void> | void;
   onBackToDashboard: () => void;
 }
 
@@ -37,17 +35,12 @@ type SettingsTab = 'APPEARANCE' | 'SECURITY' | 'DATA';
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
   currentShop,
-  language,
   theme,
-  customers = [],
-  invoices = [],
-  payments = [],
   onThemeChange,
   onResetData,
   onSaveShopSettings,
   onBackToDashboard
 }) => {
-  const t = getTranslation(language);
   const [activeTab, setActiveTab] = useState<SettingsTab>('APPEARANCE');
 
   // Password Change
@@ -66,11 +59,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
 
+  const hasExistingPassword = Boolean(currentShop?.password);
+
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (currentShop?.password && oldPassword !== currentShop.password) {
-      setPasswordMsg({ type: 'error', text: 'Incorrect current password.' });
+    if (hasExistingPassword && oldPassword !== currentShop?.password) {
+      setPasswordMsg({ type: 'error', text: 'Incorrect current password. Please verify.' });
       return;
     }
 
@@ -80,13 +75,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       return;
     }
 
-    if (newPassword === oldPassword) {
-      setPasswordMsg({ type: 'error', text: 'New password must be different.' });
+    if (hasExistingPassword && newPassword === oldPassword) {
+      setPasswordMsg({ type: 'error', text: 'New password must be different from current password.' });
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setPasswordMsg({ type: 'error', text: 'Passwords do not match.' });
+      setPasswordMsg({ type: 'error', text: 'New passwords do not match. Please verify.' });
       return;
     }
 
@@ -95,13 +90,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
     try {
       await onSaveShopSettings({ password: newPassword });
-      setPasswordMsg({ type: 'success', text: 'Password updated successfully.' });
-      setTimeout(() => setPasswordMsg(null), 3000);
+      setPasswordMsg({ type: 'success', text: 'Password updated successfully!' });
       setOldPassword('');
       setNewPassword('');
       setConfirmPassword('');
-    } catch (err: any) {
-      setPasswordMsg({ type: 'error', text: err.message || 'Failed to update password.' });
+      setTimeout(() => setPasswordMsg(null), 3500);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to update password.';
+      setPasswordMsg({ type: 'error', text: msg });
     } finally {
       setIsSavingPassword(false);
     }
@@ -181,7 +177,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       link.remove();
     } catch (err) {
       console.error('CSV export error:', err);
-      alert('Failed to export CSV.');
+      alert('Failed to export CSV. Please try again.');
     } finally {
       setIsExportingCsv(false);
     }
@@ -192,9 +188,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     e.preventDefault();
     if (!currentShop) return;
 
-    if (currentShop.password && deletePassword !== currentShop.password) {
-      setDeleteError('Incorrect password.');
-      return;
+    if (hasExistingPassword) {
+      if (deletePassword !== currentShop.password) {
+        setDeleteError('Incorrect account password.');
+        return;
+      }
+    } else {
+      // For OAuth users without a password, confirm by typing 'DELETE'
+      if (deletePassword.trim().toUpperCase() !== 'DELETE') {
+        setDeleteError('Please type "DELETE" to confirm irreversible data erasure.');
+        return;
+      }
     }
 
     setIsDeletingAll(true);
@@ -206,11 +210,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         setIsDeleteAllModalOpen(false);
         setDeletePassword('');
         onResetData();
-              } else {
-        setDeleteError('Failed to delete. Try again.');
+      } else {
+        setDeleteError('Failed to delete data. Please check your connection and try again.');
       }
-    } catch (err: any) {
-      setDeleteError(err.message || 'Error deleting data.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error deleting data.';
+      setDeleteError(msg);
     } finally {
       setIsDeletingAll(false);
     }
@@ -406,7 +411,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <div>
               <div style={{ marginBottom: '1.25rem', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.75rem' }}>
                 <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 0.25rem 0' }}>
-                  Change Password
+                  {hasExistingPassword ? 'Change Password' : 'Set Account Password'}
                 </h3>
               </div>
 
@@ -425,30 +430,54 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </div>
               )}
 
-              <form onSubmit={handlePasswordChange} style={{ maxWidth: '400px', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                <div className="form-group">
-                  <label className="form-label">Current Password *</label>
-                  <input
-                    type="password"
-                    className="form-input"
-                    placeholder="Enter current password"
-                    value={oldPassword}
-                    onChange={(e) => setOldPassword(e.target.value)}
-                    required
-                  />
-                </div>
+              <form onSubmit={handlePasswordChange} style={{ maxWidth: '420px', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                {hasExistingPassword && (
+                  <div className="form-group">
+                    <label className="form-label">Current Password *</label>
+                    <input
+                      type="password"
+                      className="form-input"
+                      placeholder="Enter current password"
+                      value={oldPassword}
+                      onChange={(e) => setOldPassword(e.target.value)}
+                      required
+                    />
+                  </div>
+                )}
 
                 <div className="form-group">
                   <label className="form-label">New Password *</label>
                   <input
                     type="password"
                     className="form-input"
-                    placeholder="At least 6 characters"
+                    placeholder="At least 8 characters"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     required
-                    minLength={6}
                   />
+                  {/* Dynamic Rule Status Checklist */}
+                  {(() => {
+                    const r = getPasswordRuleStatus(newPassword);
+                    return (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginTop: '0.45rem', fontSize: '0.71rem' }}>
+                        <span style={{ color: r.minLength ? 'var(--color-credit)' : 'var(--text-muted)', fontWeight: r.minLength ? 700 : 500 }}>
+                          {r.minLength ? '✓' : '○'} 8+ chars
+                        </span>
+                        <span style={{ color: r.hasUpper ? 'var(--color-credit)' : 'var(--text-muted)', fontWeight: r.hasUpper ? 700 : 500 }}>
+                          {r.hasUpper ? '✓' : '○'} Uppercase
+                        </span>
+                        <span style={{ color: r.hasLower ? 'var(--color-credit)' : 'var(--text-muted)', fontWeight: r.hasLower ? 700 : 500 }}>
+                          {r.hasLower ? '✓' : '○'} Lowercase
+                        </span>
+                        <span style={{ color: r.hasNumber ? 'var(--color-credit)' : 'var(--text-muted)', fontWeight: r.hasNumber ? 700 : 500 }}>
+                          {r.hasNumber ? '✓' : '○'} Number
+                        </span>
+                        <span style={{ color: r.hasSymbol ? 'var(--color-credit)' : 'var(--text-muted)', fontWeight: r.hasSymbol ? 700 : 500 }}>
+                          {r.hasSymbol ? '✓' : '○'} Symbol (!@#$)
+                        </span>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div className="form-group">
@@ -460,15 +489,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
-                    minLength={6}
                   />
                 </div>
 
                 <button
                   type="submit"
                   className="btn btn-primary"
-                  disabled={isSavingPassword || !newPassword}
-                  style={{ alignSelf: 'flex-start', minHeight: '38px', fontWeight: 700 }}
+                  disabled={isSavingPassword || !newPassword || !confirmPassword}
+                  style={{ alignSelf: 'flex-start', minHeight: '38px', fontWeight: 700, marginTop: '0.25rem' }}
                 >
                   {isSavingPassword ? (
                     <>
@@ -596,7 +624,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
 
             <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', margin: '0 0 1rem 0' }}>
-              Enter password to delete all records for <strong>{currentShop?.shop_name}</strong>.
+              {hasExistingPassword
+                ? `Enter account password to delete all records for ${currentShop?.shop_name}.`
+                : `Type "DELETE" below to confirm permanent deletion of all data for ${currentShop?.shop_name}.`}
             </p>
 
             {deleteError && (
@@ -616,11 +646,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
             <form onSubmit={handleDeleteAllData}>
               <div className="form-group" style={{ marginBottom: '1.15rem' }}>
-                <label className="form-label">Password *</label>
+                <label className="form-label">{hasExistingPassword ? 'Password *' : 'Type "DELETE" *'}</label>
                 <input
-                  type="password"
+                  type={hasExistingPassword ? 'password' : 'text'}
                   className="form-input"
-                  placeholder="Enter password"
+                  placeholder={hasExistingPassword ? 'Enter password' : 'DELETE'}
                   value={deletePassword}
                   onChange={(e) => setDeletePassword(e.target.value)}
                   required

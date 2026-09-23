@@ -1,20 +1,20 @@
 'use client';
-import { validatePasswordStrength } from './validation';
 
 import { supabase } from './supabase';
 import { Customer, Invoice, Payment, DashboardMetrics, ShopUser, ShopCategory, CustomerMessage } from '../types';
 import { simulateFIFOPayment } from './fifo';
 
 // ─────────────────────────────────────────────────
-// CURRENT USER (still localStorage - just session)
+// CURRENT USER / SESSION MANAGEMENT
 // ─────────────────────────────────────────────────
-const SESSION_KEY = 'udhari_current_shop_id';
+export const SESSION_KEY = 'udhari_current_shop_id';
 
-function getCurrentShopId(): string | null {
+export function getCurrentShopId(): string | null {
   if (typeof window === 'undefined') return null;
   return localStorage.getItem(SESSION_KEY);
 }
-function setCurrentShopId(id: string | null) {
+
+export function setCurrentShopId(id: string | null) {
   if (typeof window === 'undefined') return;
   if (id) localStorage.setItem(SESSION_KEY, id);
   else localStorage.removeItem(SESSION_KEY);
@@ -24,15 +24,25 @@ function setCurrentShopId(id: string | null) {
 // SHOPS / AUTH
 // ─────────────────────────────────────────────────
 export async function sbGetShops(): Promise<ShopUser[]> {
-  const { data, error } = await supabase.from('shops').select('*').order('created_at', { ascending: false });
-  if (error) { console.error('sbGetShops:', error); return []; }
+  const { data, error } = await supabase
+    .from('shops')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) {
+    console.error('sbGetShops error:', error);
+    return [];
+  }
   return (data || []) as ShopUser[];
 }
 
 export async function sbGetCurrentUser(): Promise<ShopUser | null> {
   const id = getCurrentShopId();
   if (!id) return null;
-  const { data, error } = await supabase.from('shops').select('*').eq('id', id).single();
+  const { data, error } = await supabase
+    .from('shops')
+    .select('*')
+    .eq('id', id)
+    .single();
   if (error || !data) return null;
   return data as ShopUser;
 }
@@ -67,26 +77,27 @@ export async function sbRegisterShop(shopData: {
     }
   }
 
-  const categoryToSave = (shopData.shop_category === 'OTHER' && shopData.custom_category)
-    ? shopData.custom_category
-    : shopData.shop_category;
+  const categoryToSave =
+    shopData.shop_category === 'OTHER' && shopData.custom_category
+      ? shopData.custom_category
+      : shopData.shop_category;
 
   const newShop: ShopUser = {
     id: `shop_${Date.now()}`,
-    shop_name: shopData.shop_name,
-    owner_name: shopData.owner_name,
-    phone: shopData.phone,
-    whatsapp_phone: shopData.phone,
-    email: shopData.email,
+    shop_name: shopData.shop_name.trim(),
+    owner_name: shopData.owner_name.trim(),
+    phone: shopData.phone.trim(),
+    whatsapp_phone: (shopData.whatsapp_phone || shopData.phone).trim(),
+    email: shopData.email ? shopData.email.trim().toLowerCase() : undefined,
     password: shopData.password,
-    gstin: shopData.gstin,
+    gstin: shopData.gstin ? shopData.gstin.trim() : undefined,
     shop_category: categoryToSave as ShopCategory,
-    custom_category: shopData.custom_category,
-    address: shopData.address,
+    custom_category: shopData.custom_category ? shopData.custom_category.trim() : undefined,
+    address: shopData.address ? shopData.address.trim() : undefined,
     terms_accepted: shopData.terms_accepted ?? true,
     created_at: new Date().toISOString(),
   };
-  
+
   // Try inserting full object
   const { error } = await supabase.from('shops').insert([newShop]);
   if (error) {
@@ -96,7 +107,7 @@ export async function sbRegisterShop(shopData: {
     const { error: fbErr } = await supabase.from('shops').insert([fallbackObj]);
     if (fbErr) throw new Error('Registration failed: ' + fbErr.message);
   }
-  
+
   setCurrentShopId(newShop.id);
   return newShop;
 }
@@ -108,15 +119,23 @@ export async function sbLoginWithCredentials(
 ): Promise<{ user: ShopUser | null; error?: string }> {
   const clean = identifier.trim().toLowerCase();
   const cleanDigits = identifier.replace(/\D/g, '');
-  
+
   // Find shop by email or phone
-  let { data, error } = await supabase
+  const { data, error } = await supabase
     .from('shops')
     .select('*')
     .or(`email.ilike.${clean},phone.eq.${clean},phone.eq.${cleanDigits}`)
     .limit(1);
-  
-  if (error || !data || data.length === 0) {
+
+  if (error) {
+    console.error('sbLoginWithCredentials query error:', error);
+    return {
+      user: null,
+      error: error.message || 'Unable to connect to the Supabase database. Please verify your connection or check if your Supabase project is active.'
+    };
+  }
+
+  if (!data || data.length === 0) {
     return {
       user: null,
       error: `No business account found with this ${method === 'EMAIL' ? 'email address' : 'mobile number'}. Please check your entry or create an account.`
@@ -125,14 +144,12 @@ export async function sbLoginWithCredentials(
 
   const shop = data[0] as ShopUser;
 
-  // Verify password
-  if (password) {
-    if (shop.password && shop.password !== password) {
-      return {
-        user: null,
-        error: 'Incorrect password for this account. Please check your password and try again.'
-      };
-    }
+  // Verify password if account has one set
+  if (password && shop.password && shop.password !== password) {
+    return {
+      user: null,
+      error: 'Incorrect password for this account. Please check your password and try again.'
+    };
   }
 
   setCurrentShopId(shop.id);
@@ -140,7 +157,7 @@ export async function sbLoginWithCredentials(
 }
 
 export async function sbLoginWithPhone(identifier: string): Promise<ShopUser | null> {
-  const res = await sbLoginWithCredentials(identifier);
+  const res = await sbLoginWithCredentials(identifier, undefined, 'PHONE');
   return res.user;
 }
 
@@ -165,14 +182,40 @@ export async function sbResetShopPassword(email: string, newPassword: string): P
 
     if (updateError) return { success: false, error: updateError.message };
     return { success: true };
-  } catch (err: any) {
-    return { success: false, error: err.message || 'Failed to update password.' };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Failed to update password.';
+    return { success: false, error: msg };
   }
 }
 
-export async function sbUpdateShop(shopId: string, updates: Partial<ShopUser>): Promise<ShopUser | null> {
-  const { data, error } = await supabase.from('shops').update(updates).eq('id', shopId).select().single();
-  if (error) { console.error('sbUpdateShop:', error); return null; }
+export async function sbUpdateShop(shopId: string, updates: Partial<ShopUser>): Promise<ShopUser> {
+  // If email is being updated, check if another shop already uses it
+  if (updates.email) {
+    const cleanEmail = updates.email.trim().toLowerCase();
+    const { data: existing } = await supabase
+      .from('shops')
+      .select('id, email')
+      .ilike('email', cleanEmail)
+      .neq('id', shopId)
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      throw new Error(`The email address "${cleanEmail}" is already used by another business account.`);
+    }
+  }
+
+  const { data, error } = await supabase
+    .from('shops')
+    .update(updates)
+    .eq('id', shopId)
+    .select()
+    .single();
+
+  if (error || !data) {
+    console.error('sbUpdateShop error:', error);
+    throw new Error(error?.message || 'Failed to update business profile.');
+  }
+
   return data as ShopUser;
 }
 
@@ -186,19 +229,22 @@ export async function sbGetCustomers(shopId: string): Promise<Customer[]> {
     .eq('shop_id', shopId)
     .order('created_at', { ascending: false });
 
-  if (error) { console.error('sbGetCustomers:', error); return []; }
+  if (error) {
+    console.error('sbGetCustomers error:', error);
+    return [];
+  }
   if (!customers || customers.length === 0) return [];
 
-  // Query all invoices to guarantee accurate balance calculation
+  // Query all non-cancelled invoices for exact balance calculation
   const { data: invoices } = await supabase
     .from('invoices')
-    .select('customer_id, total_amount, paid_amount, status')
+    .select('customer_id, total_amount, paid_amount, discount_amount, status')
     .eq('shop_id', shopId)
     .neq('status', 'CANCELLED');
 
   const balanceMap = new Map<string, number>();
   (invoices || []).forEach((inv) => {
-    const remaining = Math.max(0, (inv.total_amount || 0) - (inv.paid_amount || 0));
+    const remaining = Math.max(0, (inv.total_amount || 0) - (inv.paid_amount || 0) - (inv.discount_amount || 0));
     balanceMap.set(inv.customer_id, (balanceMap.get(inv.customer_id) || 0) + remaining);
   });
 
@@ -215,23 +261,50 @@ export async function sbAddCustomer(
   shopId: string,
   customerData: Omit<Customer, 'id' | 'created_at' | 'updated_at' | 'current_balance' | 'status' | 'shop_id'>
 ): Promise<Customer> {
+  const cleanPhone = customerData.phone.replace(/\D/g, '').slice(0, 10);
+
+  // Check for duplicate customer phone within the same shop
+  if (cleanPhone) {
+    const { data: existingCust } = await supabase
+      .from('customers')
+      .select('id, name, phone')
+      .eq('shop_id', shopId)
+      .eq('phone', cleanPhone)
+      .limit(1);
+
+    if (existingCust && existingCust.length > 0) {
+      throw new Error(`A customer named "${existingCust[0].name}" with mobile number ${cleanPhone} already exists.`);
+    }
+  }
+
   const customer: Customer = {
     ...customerData,
     id: `cust_${Date.now()}`,
     shop_id: shopId,
+    name: customerData.name.trim(),
+    phone: cleanPhone,
+    address_landmark: customerData.address_landmark ? customerData.address_landmark.trim() : undefined,
+    credit_limit: customerData.credit_limit || 10000,
     current_balance: 0,
     status: 'ACTIVE',
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   };
+
   const { error } = await supabase.from('customers').insert([customer]);
   if (error) throw new Error('Add customer failed: ' + error.message);
   return customer;
 }
 
 export async function sbUpdateCustomer(customerId: string, updates: Partial<Customer>): Promise<void> {
-  const { error } = await supabase.from('customers').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', customerId);
-  if (error) console.error('sbUpdateCustomer:', error);
+  const { error } = await supabase
+    .from('customers')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', customerId);
+  if (error) {
+    console.error('sbUpdateCustomer error:', error);
+    throw new Error(error.message);
+  }
 }
 
 export async function sbDeleteCustomer(customerId: string): Promise<boolean> {
@@ -297,13 +370,19 @@ export async function sbGetInvoices(shopId: string): Promise<Invoice[]> {
     .select('*')
     .eq('shop_id', shopId)
     .order('created_at', { ascending: false });
-  if (invError) { console.error('sbGetInvoices:', invError); return []; }
+  if (invError) {
+    console.error('sbGetInvoices error:', invError);
+    return [];
+  }
+
+  const invoiceList = (invoices || []) as Invoice[];
+  if (invoiceList.length === 0) return [];
 
   const { data: items, error: itemError } = await supabase
     .from('invoice_items')
     .select('*')
-    .in('invoice_id', (invoices || []).map((i) => i.id));
-  if (itemError) console.error('sbGetInvoiceItems:', itemError);
+    .in('invoice_id', invoiceList.map((i) => i.id));
+  if (itemError) console.error('sbGetInvoiceItems error:', itemError);
 
   const itemMap = new Map<string, typeof items>();
   (items || []).forEach((item) => {
@@ -311,10 +390,10 @@ export async function sbGetInvoices(shopId: string): Promise<Invoice[]> {
     itemMap.get(item.invoice_id)!.push(item);
   });
 
-  return (invoices || []).map((inv) => ({
+  return invoiceList.map((inv) => ({
     ...inv,
     items: itemMap.get(inv.id) || []
-  })) as Invoice[];
+  }));
 }
 
 export async function sbAddInvoice(
@@ -329,8 +408,11 @@ export async function sbAddInvoice(
   const isFullyPaid = advanceAmount >= invoiceData.total_amount;
   const isPartiallyPaid = advanceAmount > 0;
 
-  // Get count for invoice number
-  const { count } = await supabase.from('invoices').select('*', { count: 'exact', head: true }).eq('shop_id', shopId);
+  // Generate unique invoice number
+  const { count } = await supabase
+    .from('invoices')
+    .select('*', { count: 'exact', head: true })
+    .eq('shop_id', shopId);
   const invoiceNumber = `INV-${new Date().getFullYear()}-${String((count || 0) + 1).padStart(3, '0')}`;
 
   const invoiceId = `inv_${Date.now()}`;
@@ -352,7 +434,7 @@ export async function sbAddInvoice(
     invoice_number: invoice.invoice_number,
     total_amount: invoice.total_amount,
     paid_amount: invoice.paid_amount,
-    discount_amount: invoice.discount_amount,
+    discount_amount: invoice.discount_amount || 0,
     status: invoice.status,
     taken_by_name: invoice.taken_by_name,
     notes: invoice.notes,
@@ -372,12 +454,17 @@ export async function sbAddInvoice(
       subtotal: item.subtotal
     }));
     const { error: itemError } = await supabase.from('invoice_items').insert(itemRows);
-    if (itemError) console.error('Add invoice items failed:', itemError);
+    if (itemError) {
+      console.error('Add invoice items failed:', itemError);
+    }
   }
 
   // If immediate partial/full payment was made on spot, record payment and allocation
   if (advanceAmount > 0) {
-    const { count: payCount } = await supabase.from('payments').select('*', { count: 'exact', head: true }).eq('shop_id', shopId);
+    const { count: payCount } = await supabase
+      .from('payments')
+      .select('*', { count: 'exact', head: true })
+      .eq('shop_id', shopId);
     const receiptNumber = `REC-${new Date().getFullYear()}-${String((payCount || 0) + 1).padStart(3, '0')}`;
     const paymentId = `pay_${Date.now()}`;
 
@@ -403,7 +490,7 @@ export async function sbAddInvoice(
     }]);
   }
 
-  // Update customer balance directly with await (only adds the unpaid remaining debt)
+  // Update customer balance directly in DB
   try {
     const remainingDue = invoice.total_amount - advanceAmount;
     const { data: cust } = await supabase
@@ -416,7 +503,7 @@ export async function sbAddInvoice(
     await supabase
       .from('customers')
       .update({
-        current_balance: newBal,
+        current_balance: Math.max(0, newBal),
         updated_at: new Date().toISOString()
       })
       .eq('id', customerId);
@@ -436,12 +523,18 @@ export async function sbGetPayments(shopId: string): Promise<Payment[]> {
     .select('*')
     .eq('shop_id', shopId)
     .order('created_at', { ascending: false });
-  if (error) { console.error('sbGetPayments:', error); return []; }
+  if (error) {
+    console.error('sbGetPayments error:', error);
+    return [];
+  }
+
+  const paymentList = (payments || []) as Payment[];
+  if (paymentList.length === 0) return [];
 
   const { data: allocations } = await supabase
     .from('payment_allocations')
     .select('*')
-    .in('payment_id', (payments || []).map((p) => p.id));
+    .in('payment_id', paymentList.map((p) => p.id));
 
   const allocMap = new Map<string, typeof allocations>();
   (allocations || []).forEach((a) => {
@@ -449,25 +542,44 @@ export async function sbGetPayments(shopId: string): Promise<Payment[]> {
     allocMap.get(a.payment_id)!.push(a);
   });
 
-  return (payments || []).map((p) => ({
+  return paymentList.map((p) => ({
     ...p,
     allocations: allocMap.get(p.id) || []
-  })) as Payment[];
+  }));
 }
 
 export async function sbRecordPayment(
   shopId: string,
   customerId: string,
-  invoices: Invoice[],
+  _passedInvoices: Invoice[],
   amount: number,
   paymentMode: Payment['payment_mode'],
   discountWaived: number = 0,
   referenceNote?: string
 ): Promise<Payment> {
-  const { count } = await supabase.from('payments').select('*', { count: 'exact', head: true }).eq('shop_id', shopId);
-  const receiptNumber = `REC-${new Date().getFullYear()}-${String((count || 0) + 1).padStart(3, '0')}`;
+  const sanitizedAmount = Math.max(0, amount);
+  const sanitizedDiscount = Math.max(0, discountWaived);
 
-  const fifoResult = simulateFIFOPayment(invoices, amount, discountWaived);
+  // Fetch fresh unpaid invoices directly from DB for accurate FIFO allocation
+  const { data: freshInvoices } = await supabase
+    .from('invoices')
+    .select('*')
+    .eq('customer_id', customerId)
+    .neq('status', 'PAID')
+    .neq('status', 'CANCELLED')
+    .order('created_at', { ascending: true });
+
+  const fifoResult = simulateFIFOPayment(
+    (freshInvoices || []) as Invoice[],
+    sanitizedAmount,
+    sanitizedDiscount
+  );
+
+  const { count } = await supabase
+    .from('payments')
+    .select('*', { count: 'exact', head: true })
+    .eq('shop_id', shopId);
+  const receiptNumber = `REC-${new Date().getFullYear()}-${String((count || 0) + 1).padStart(3, '0')}`;
   const paymentId = `pay_${Date.now()}`;
 
   const payment: Payment = {
@@ -475,10 +587,10 @@ export async function sbRecordPayment(
     shop_id: shopId,
     customer_id: customerId,
     receipt_number: receiptNumber,
-    amount,
+    amount: sanitizedAmount,
     payment_mode: paymentMode,
-    discount_waived: discountWaived,
-    reference_note: referenceNote,
+    discount_waived: sanitizedDiscount,
+    reference_note: referenceNote ? referenceNote.trim() : undefined,
     allocations: [],
     created_at: new Date().toISOString()
   };
@@ -496,7 +608,7 @@ export async function sbRecordPayment(
   }]);
   if (payError) throw new Error('Record payment failed: ' + payError.message);
 
-  // Save allocations & update invoices
+  // Save allocations & update invoice paid amounts
   const allocRows = [];
   for (const alloc of fifoResult.allocations) {
     allocRows.push({
@@ -507,8 +619,13 @@ export async function sbRecordPayment(
       allocated_amount: alloc.allocated_amount,
       created_at: new Date().toISOString()
     });
-    // Update invoice paid amount and status
-    const { data: inv } = await supabase.from('invoices').select('paid_amount').eq('id', alloc.invoice_id).single();
+
+    const { data: inv } = await supabase
+      .from('invoices')
+      .select('paid_amount')
+      .eq('id', alloc.invoice_id)
+      .single();
+
     if (inv) {
       await supabase.from('invoices').update({
         paid_amount: (inv.paid_amount || 0) + alloc.allocated_amount,
@@ -516,14 +633,20 @@ export async function sbRecordPayment(
       }).eq('id', alloc.invoice_id);
     }
   }
+
   if (allocRows.length > 0) {
     await supabase.from('payment_allocations').insert(allocRows);
   }
 
-  // Update customer balance
-  const { data: cust } = await supabase.from('customers').select('current_balance').eq('id', customerId).single();
+  // Update customer balance directly in DB
+  const { data: cust } = await supabase
+    .from('customers')
+    .select('current_balance')
+    .eq('id', customerId)
+    .single();
+
   if (cust) {
-    const totalSettled = amount + discountWaived;
+    const totalSettled = sanitizedAmount + sanitizedDiscount;
     await supabase.from('customers').update({
       current_balance: Math.max(0, (cust.current_balance || 0) - totalSettled),
       updated_at: new Date().toISOString()
@@ -533,22 +656,20 @@ export async function sbRecordPayment(
   return { ...payment, allocations: allocRows };
 }
 
-// ─────────────────────────────────────────────────
-// DASHBOARD METRICS
-// ─────────────────────────────────────────────────
 export async function sbDeletePayment(paymentId: string, customerId: string, shopId: string): Promise<boolean> {
   try {
     // 1. Delete allocations for this payment
     await supabase.from('payment_allocations').delete().eq('payment_id', paymentId);
 
-    // 2. Delete payment
+    // 2. Delete payment record
     await supabase.from('payments').delete().eq('id', paymentId);
 
     // 3. Recalculate customer balance and invoice paid amounts
     const { data: customerInvoices } = await supabase
       .from('invoices')
-      .select('id, total_amount, paid_amount')
+      .select('id, total_amount, discount_amount')
       .eq('customer_id', customerId)
+      .neq('status', 'CANCELLED')
       .order('created_at', { ascending: true });
 
     const { data: remainingPayments } = await supabase
@@ -557,19 +678,33 @@ export async function sbDeletePayment(paymentId: string, customerId: string, sho
       .eq('customer_id', customerId)
       .order('created_at', { ascending: true });
 
-    let availableCredit = (remainingPayments || []).reduce((sum, p) => sum + (p.amount || 0) + (p.discount_waived || 0), 0);
+    let availableCredit = (remainingPayments || []).reduce(
+      (sum, p) => sum + (p.amount || 0) + (p.discount_waived || 0),
+      0
+    );
+
+    let totalCustomerDebt = 0;
 
     for (const inv of (customerInvoices || [])) {
-      if (availableCredit >= inv.total_amount) {
-        await supabase.from('invoices').update({ paid_amount: inv.total_amount, status: 'PAID' }).eq('id', inv.id);
-        availableCredit -= inv.total_amount;
+      const netInvoiceDue = Math.max(0, (inv.total_amount || 0) - (inv.discount_amount || 0));
+      if (availableCredit >= netInvoiceDue) {
+        await supabase.from('invoices').update({ paid_amount: netInvoiceDue, status: 'PAID' }).eq('id', inv.id);
+        availableCredit -= netInvoiceDue;
       } else if (availableCredit > 0) {
         await supabase.from('invoices').update({ paid_amount: availableCredit, status: 'PARTIAL' }).eq('id', inv.id);
+        totalCustomerDebt += (netInvoiceDue - availableCredit);
         availableCredit = 0;
       } else {
         await supabase.from('invoices').update({ paid_amount: 0, status: 'UNPAID' }).eq('id', inv.id);
+        totalCustomerDebt += netInvoiceDue;
       }
     }
+
+    // Update customer current_balance in customers table
+    await supabase.from('customers').update({
+      current_balance: Math.max(0, totalCustomerDebt),
+      updated_at: new Date().toISOString()
+    }).eq('id', customerId);
 
     return true;
   } catch (err) {
@@ -631,10 +766,10 @@ export async function sbGetDashboardMetrics(shopId: string): Promise<DashboardMe
   const totalMarketDebt = customers.reduce((sum, c) => sum + (c.current_balance || 0), 0);
   const creditGivenToday = invoices
     .filter((i) => i.created_at.startsWith(todayStr) && i.status !== 'CANCELLED')
-    .reduce((sum, i) => sum + i.total_amount, 0);
+    .reduce((sum, i) => sum + (i.total_amount || 0), 0);
   const collectedToday = payments
     .filter((p) => p.created_at.startsWith(todayStr))
-    .reduce((sum, p) => sum + p.amount, 0);
+    .reduce((sum, p) => sum + (p.amount || 0), 0);
   const activeDebtorsCount = customers.filter((c) => (c.current_balance || 0) > 0).length;
 
   return {
@@ -656,7 +791,10 @@ export async function sbGetCustomerMessages(shopId: string, customerId: string):
     .eq('shop_id', shopId)
     .eq('customer_id', customerId)
     .order('created_at', { ascending: false });
-  if (error) { console.error('sbGetCustomerMessages:', error); return []; }
+  if (error) {
+    console.error('sbGetCustomerMessages error:', error);
+    return [];
+  }
   return (data || []) as CustomerMessage[];
 }
 
@@ -676,8 +814,6 @@ export async function sbSaveCustomerMessage(
     created_at: new Date().toISOString()
   };
   const { error } = await supabase.from('customer_messages').insert([msg]);
-  if (error) console.error('sbSaveCustomerMessage:', error);
+  if (error) console.error('sbSaveCustomerMessage error:', error);
   return msg;
 }
-
-// ─────────────────────────────────────────────────

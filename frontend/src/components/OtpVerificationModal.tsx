@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase';
 interface OtpVerificationModalProps {
   type: 'PHONE' | 'EMAIL';
   target: string; // phone number or email
+  currentShopId?: string;
   onClose: () => void;
   onVerified: () => void;
 }
@@ -14,6 +15,7 @@ interface OtpVerificationModalProps {
 export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
   type,
   target,
+  currentShopId,
   onClose,
   onVerified,
 }) => {
@@ -40,8 +42,26 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
 
     try {
       if (isEmail) {
+        const cleanEmail = target.trim().toLowerCase();
+
+        // Check if email is already taken by another shop
+        if (currentShopId) {
+          const { data: existingShop } = await supabase
+            .from('shops')
+            .select('id, shop_name, email')
+            .ilike('email', cleanEmail)
+            .neq('id', currentShopId)
+            .limit(1);
+
+          if (existingShop && existingShop.length > 0) {
+            setError(`The email "${cleanEmail}" is already registered to another business account.`);
+            setIsSending(false);
+            return;
+          }
+        }
+
         const { error: emailError } = await supabase.auth.signInWithOtp({
-          email: target.trim().toLowerCase(),
+          email: cleanEmail,
           options: {
             emailRedirectTo: typeof window !== 'undefined' ? window.location.origin : undefined,
             shouldCreateUser: true
@@ -81,10 +101,10 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
     return () => clearInterval(interval);
   }, [timer, otpSent]);
 
-  // Strict Supabase OTP Verification
+  // Supabase OTP Verification
   const handleVerify = async (codeToVerify: string) => {
     const cleanToken = codeToVerify.trim();
-    if (!cleanToken) return;
+    if (!cleanToken || isVerifying || isSuccess) return;
 
     setIsVerifying(true);
     setError(null);
@@ -93,12 +113,12 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
       let isVerified = false;
       if (isEmail) {
         const cleanEmail = target.trim().toLowerCase();
-        let { error } = await supabase.auth.verifyOtp({
+        const { error: emailErr } = await supabase.auth.verifyOtp({
           email: cleanEmail,
           token: cleanToken,
           type: 'email'
         });
-        if (!error) {
+        if (!emailErr) {
           isVerified = true;
         } else {
           const retry1 = await supabase.auth.verifyOtp({
@@ -119,12 +139,12 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
         }
       } else {
         const phone = target.startsWith('+') ? target : `+91${target.replace(/\D/g, '')}`;
-        const { error } = await supabase.auth.verifyOtp({
+        const { error: phoneErr } = await supabase.auth.verifyOtp({
           phone,
           token: cleanToken,
           type: 'sms'
         });
-        if (!error) isVerified = true;
+        if (!phoneErr) isVerified = true;
       }
 
       if (isVerified) {
@@ -132,7 +152,7 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
         setTimeout(() => {
           onVerified();
           onClose();
-        }, 500);
+        }, 400);
       } else {
         setError('Invalid verification code. Please check your code and try again.');
       }
@@ -191,7 +211,7 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
             </p>
           </div>
 
-          {/* Standard Code Input */}
+          {/* Code Input */}
           <div style={{ width: '100%', maxWidth: '240px' }}>
             <input
               ref={inputRef}
@@ -271,6 +291,7 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
                 <button
                   type="button"
                   onClick={sendOtp}
+                  disabled={isSending}
                   style={{
                     background: 'none', border: 'none', cursor: 'pointer',
                     color: 'var(--text-primary)', fontWeight: 600,
