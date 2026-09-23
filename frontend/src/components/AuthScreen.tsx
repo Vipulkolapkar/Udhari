@@ -24,6 +24,7 @@ interface AuthScreenProps {
   initialEmail?: string;
   initialOwnerName?: string;
   initialEmailVerified?: boolean;
+  initialForgotStep?: 'EMAIL' | 'OTP' | 'NEW_PASSWORD';
   infoBanner?: string | null;
   onLogin: (shop: ShopUser) => void;
   onLoginWithEmail: (identifier: string, password?: string, method?: 'EMAIL' | 'PHONE') => Promise<{ success: boolean; error?: string } | void> | void;
@@ -49,6 +50,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   initialEmail = '',
   initialOwnerName = '',
   initialEmailVerified = false,
+  initialForgotStep = 'EMAIL',
   infoBanner = null,
   onLoginWithEmail,
   onRegister
@@ -87,8 +89,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const [otpError, setOtpError] = useState<string | null>(null);
 
   // ─── 3-Step Sequential Forgot Password State ──────────────────────
-  const [forgotStep, setForgotStep] = useState<'EMAIL' | 'OTP' | 'NEW_PASSWORD'>('EMAIL');
-  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotStep, setForgotStep] = useState<'EMAIL' | 'OTP' | 'NEW_PASSWORD'>(initialForgotStep);
+  const [forgotEmail, setForgotEmail] = useState(initialTab === 'FORGOT_PASSWORD' && initialEmail ? initialEmail : '');
   const [forgotCode, setForgotCode] = useState('');
   const [forgotTimer, setForgotTimer] = useState(60);
   const [forgotNewPassword, setForgotNewPassword] = useState('');
@@ -104,10 +106,16 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
   useEffect(() => {
     if (initialTab) setTab(initialTab);
-    if (initialEmail) setEmail(initialEmail);
+    if (initialEmail) {
+      setEmail(initialEmail);
+      if (initialTab === 'FORGOT_PASSWORD') {
+        setForgotEmail(initialEmail);
+      }
+    }
     if (initialOwnerName) setOwnerName(initialOwnerName);
     if (initialEmailVerified !== undefined) setIsEmailVerified(initialEmailVerified);
-  }, [initialTab, initialEmail, initialOwnerName, initialEmailVerified]);
+    if (initialForgotStep) setForgotStep(initialForgotStep);
+  }, [initialTab, initialEmail, initialOwnerName, initialEmailVerified, initialForgotStep]);
 
   // Timers
   useEffect(() => {
@@ -124,6 +132,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
   // Reset Forgot Password state completely
   const resetForgotPasswordState = () => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('udhari_resetting_password_email');
+    }
     setForgotStep('EMAIL');
     setForgotEmail('');
     setForgotCode('');
@@ -248,11 +259,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         return;
       }
 
-      await supabase.auth.signOut().catch(() => {});
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('udhari_resetting_password_email', cleanEmail);
+      }
+      await supabase.auth.signOut().catch(() => { });
       const { error } = await supabase.auth.signInWithOtp({
         email: cleanEmail,
         options: {
-          emailRedirectTo: typeof window !== 'undefined' ? window.location.origin : undefined
+          emailRedirectTo: typeof window !== 'undefined' ? `${window.location.origin}?type=recovery` : undefined
         }
       });
       if (error) {
@@ -267,6 +281,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
       setForgotTimer(60);
       setForgotCode('');
     } catch (err: unknown) {
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('udhari_resetting_password_email');
+      }
       const msg = err instanceof Error ? err.message : 'Failed to send OTP.';
       setErrorMessage(msg);
     } finally {
@@ -284,6 +301,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
     setIsVerifyingForgotOtp(true);
     setErrorMessage(null);
+
+    // Keep reset flag active so onAuthStateChange doesn't auto-redirect to dashboard
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('udhari_resetting_password_email', forgotEmail.trim().toLowerCase());
+    }
 
     try {
       let { error: verifyErr } = await supabase.auth.verifyOtp({
@@ -311,6 +333,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
       setForgotStep('NEW_PASSWORD');
       setErrorMessage(null);
     } catch (err: unknown) {
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('udhari_resetting_password_email');
+      }
       const msg = err instanceof Error ? err.message : 'Verification failed.';
       setErrorMessage(msg);
     } finally {
@@ -340,12 +365,27 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         throw new Error(res.error || 'Failed to update password.');
       }
 
-      // Success! Clear all states and route to clean login
+      // Also update Supabase Auth user password if there is an active session
+      try {
+        await supabase.auth.updateUser({ password: forgotNewPassword });
+      } catch (e) {
+        console.warn('Could not update Supabase auth password:', e);
+      }
+
+      // Clear password reset session flag
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('udhari_resetting_password_email');
+      }
+
+      // Sign out of any temporary session so user logs in cleanly with new password
+      await supabase.auth.signOut().catch(() => {});
+
+      // Success! Clear all states and route to clean login with email prefilled
+      const savedEmail = forgotEmail.trim().toLowerCase();
       resetForgotPasswordState();
-      setLoginEmail('');
+      setLoginEmail(savedEmail);
       setLoginPassword('');
-      setForgotEmail('');
-      setSuccessMessage('Password reset successfully! Please sign in with your new credentials.');
+      setSuccessMessage('Password reset successfully! Please sign in with your new password.');
       setTab('LOGIN');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Password reset failed.';
@@ -689,7 +729,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                     }}
                     onClick={() => {
                       resetForgotPasswordState();
-                      setForgotEmail('');
+                      if (loginEmail.trim()) {
+                        setForgotEmail(loginEmail.trim());
+                      }
                       setTab('FORGOT_PASSWORD');
                     }}
                   >
@@ -1108,7 +1150,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                     Enter Verification Code
                   </h2>
                   <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0 }}>
-                    Code sent to <strong>{forgotEmail}</strong>
+                    We sent a verification code to <strong>{forgotEmail}</strong>. Enter the code below or click the reset link in your email to proceed to setting your new password.
                   </p>
                 </div>
 

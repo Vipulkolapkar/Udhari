@@ -71,10 +71,11 @@ export default function Home() {
   const [isOAuthRedirecting, setIsOAuthRedirecting] = useState(false);
 
   const [prefilledAuth, setPrefilledAuth] = useState<{
-    tab?: 'LOGIN' | 'REGISTER';
+    tab?: 'LOGIN' | 'REGISTER' | 'FORGOT_PASSWORD';
     email?: string;
     ownerName?: string;
     isEmailVerified?: boolean;
+    forgotStep?: 'EMAIL' | 'OTP' | 'NEW_PASSWORD';
     message?: string;
   } | null>(null);
 
@@ -138,20 +139,56 @@ export default function Home() {
 
       const savedSidebar = localStorage.getItem('khata_sidebar_collapsed');
       setIsSidebarCollapsed(savedSidebar === 'true' ? true : false);
+      const isRecoveryLanding = window.location.hash.includes('type=recovery') ||
+        window.location.search.includes('type=recovery') ||
+        Boolean(sessionStorage.getItem('udhari_resetting_password_email'));
 
-      const isOAuthLanding = window.location.hash.includes('access_token') ||
-        window.location.hash.includes('type=signup') ||
-        window.location.search.includes('code=');
-      if (isOAuthLanding) {
-        setIsOAuthRedirecting(true);
+      if (isRecoveryLanding) {
+        const savedEmail = sessionStorage.getItem('udhari_resetting_password_email') || '';
+        setPrefilledAuth({
+          tab: 'FORGOT_PASSWORD',
+          email: savedEmail,
+          forgotStep: 'NEW_PASSWORD',
+          message: 'Identity verified! Please set your new password below.'
+        });
+      } else {
+        const isOAuthLanding = window.location.hash.includes('access_token') ||
+          window.location.hash.includes('type=signup') ||
+          window.location.search.includes('code=');
+        if (isOAuthLanding) {
+          setIsOAuthRedirecting(true);
+        }
       }
     }
     refreshData().finally(() => setIsInitialized(true));
 
     // ─── Listen for Google OAuth / Auth Events ───
-    const handleAuthEvent = async (session: any) => {
+    const handleAuthEvent = async (session: any, eventName?: string) => {
       if (!session?.user?.email) return;
       const userEmail = session.user.email.toLowerCase();
+
+      // Check if user is resetting password or arrived via password recovery
+      const isRecovery =
+        eventName === 'PASSWORD_RECOVERY' ||
+        (typeof window !== 'undefined' && (
+          window.location.hash.includes('type=recovery') ||
+          window.location.search.includes('type=recovery') ||
+          Boolean(sessionStorage.getItem('udhari_resetting_password_email'))
+        ));
+
+      if (isRecovery) {
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('udhari_resetting_password_email', userEmail);
+        }
+        setPrefilledAuth({
+          tab: 'FORGOT_PASSWORD',
+          email: userEmail,
+          forgotStep: 'NEW_PASSWORD',
+          message: 'Identity verified! Please set your new password below.'
+        });
+        setIsOAuthRedirecting(false);
+        return;
+      }
 
       try {
         const allShops = await sbGetShops();
@@ -190,8 +227,8 @@ export default function Home() {
     });
 
     const { data: authSub } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if ((event === 'SIGNED_IN' || event === 'USER_UPDATED') && session?.user) {
-        await handleAuthEvent(session);
+      if ((event === 'SIGNED_IN' || event === 'USER_UPDATED' || event === 'PASSWORD_RECOVERY') && session?.user) {
+        await handleAuthEvent(session, event);
       }
     });
 
@@ -545,6 +582,7 @@ export default function Home() {
           initialEmail={prefilledAuth?.email || ''}
           initialOwnerName={prefilledAuth?.ownerName || ''}
           initialEmailVerified={prefilledAuth?.isEmailVerified || false}
+          initialForgotStep={prefilledAuth?.forgotStep || 'EMAIL'}
           infoBanner={prefilledAuth?.message || null}
           onLogin={handleLoginShop}
           onLoginWithEmail={handleLoginWithEmail}
